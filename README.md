@@ -1,4 +1,4 @@
-# Agentic AI as a Service
+# Samkhya.ai
 
 A platform for creating, deploying, and managing multi-agent AI workflows using LangChain and LangGraph.
 
