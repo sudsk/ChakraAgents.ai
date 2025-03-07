@@ -1,0 +1,63 @@
+# deployment/cloud-run/backend.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: agentic-ai-backend
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containers:
+      - image: gcr.io/PROJECT_ID/agentic-ai-backend
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: agentic-ai-secrets
+              key: database-url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agentic-ai-secrets
+              key: secret-key
+        - name: VERTEX_AI_PROJECT_ID
+          value: "PROJECT_ID"
+        - name: VERTEX_AI_LOCATION
+          value: "us-central1"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agentic-ai-secrets
+              key: openai-api-key
+              optional: true
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agentic-ai-secrets
+              key: anthropic-api-key
+              optional: true
+        - name: CORS_ORIGINS
+          value: "https://agentic-ai-frontend-URL_SUFFIX.a.run.app"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
