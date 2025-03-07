@@ -1,0 +1,32 @@
+# deployment/cloud-run/frontend.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: agentic-ai-frontend
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+      - image: gcr.io/PROJECT_ID/agentic-ai-frontend
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
