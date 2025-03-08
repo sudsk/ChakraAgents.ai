@@ -6,17 +6,16 @@ from pydantic import BaseModel, Field
 
 # LangChain imports
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferMemory
-from langchain_google_vertexai import VertexAI
+from langchain_core.output_parsers import StrOutputParser
+from langchain.agents.format_scratchpad import format_to_openai_function_messages
+from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.tools import Tool
 from langchain_core.messages import HumanMessage, AIMessage
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor
-from langgraph.checkpoint import JsonCheckpoint
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.utils import pydantic_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +112,8 @@ class TemplateEngine:
     def _get_llm(self, provider: str, model_name: str, **kwargs):
         """Factory method to get LLM based on provider"""
         if provider == AgentModelProvider.VERTEX_AI:
-            return VertexAI(model_name=model_name, **kwargs)
+            from langchain_google_vertexai import ChatVertexAI
+            return ChatVertexAI(model_name=model_name, **kwargs)
         elif provider == AgentModelProvider.OPENAI:
             from langchain_openai import ChatOpenAI
             return ChatOpenAI(model=model_name, **kwargs)
@@ -175,8 +175,8 @@ class TemplateEngine:
             worker_prompt = ChatPromptTemplate.from_template(worker_config.prompt_template)
             
             if worker_tools:
-                # Create ReAct agent if tools are specified
-                worker_agent = create_react_agent(
+                # Create agent with tools if tools are specified
+                worker_agent = create_openai_functions_agent(
                     worker_llm,
                     worker_tools,
                     worker_prompt
@@ -212,48 +212,91 @@ class TemplateEngine:
                         )
                     )
         
-        # Create the supervisor agent
-        supervisor_prompt = ChatPromptTemplate.from_template(supervisor_config.prompt_template)
+        # Build LangGraph workflow for supervisor
+        class SupervisorState(BaseModel):
+            messages: List[Dict[str, Any]] = Field(default_factory=list)
+            next: Optional[str] = None
         
-        # Build LangGraph workflow
-        tool_executor = ToolExecutor(supervisor_tools)
-        
-        # Define state schema
-        class AgentState(BaseModel):
-            messages: List[Dict[str, str]]
-            action: Optional[Dict[str, str]] = None
-            
         # Define supervisor node
         def supervisor_node(state):
+            # Extract the messages
             messages = state["messages"]
-            return supervisor_llm.invoke(supervisor_prompt.format_messages(messages=messages))
+            # Format the messages for the supervisor
+            supervisor_prompt = ChatPromptTemplate.from_template(supervisor_config.prompt_template)
+            response = supervisor_llm.invoke(supervisor_prompt.format_messages(input=messages[-1]["content"]))
+            
+            # Determine the next worker
+            # This is simplified - in a real implementation you'd parse the response
+            # to determine which worker to call next
+            content = response.content
+            
+            # Simple parsing logic - find worker mentions
+            next_worker = None
+            for worker_name in worker_agents.keys():
+                if worker_name.lower() in content.lower():
+                    next_worker = worker_name
+                    break
+            
+            return {"messages": messages + [{"role": "assistant", "content": content}], "next": next_worker or "end"}
         
-        # Define routing function
-        def route_to_tool(state):
-            action = state["action"]
-            if action.tool == "_end_":
-                return END
-            return action.tool
+        # Worker node function factory
+        def create_worker_node(worker_name):
+            worker_chain = worker_agents[worker_name]
+            
+            def worker_node(state):
+                messages = state["messages"]
+                user_message = messages[-2]["content"]  # Get the original user query
+                response = worker_chain({"input": user_message})
+                
+                if isinstance(response, str):
+                    worker_response = response
+                else:
+                    # Handle different response formats
+                    worker_response = response.get("output", str(response))
+                
+                return {
+                    "messages": messages + [{"role": "function", "name": worker_name, "content": worker_response}],
+                    "next": "supervisor"  # Return to supervisor after worker completes
+                }
+            
+            return worker_node
         
-        # Build graph
-        workflow_builder = StateGraph({"messages": [], "action": None})
-        workflow_builder.add_node("supervisor", supervisor_node)
-        workflow_builder.add_node("tool_executor", tool_executor)
+        # Create the graph
+        workflow = StateGraph(SupervisorState)
         
-        # Add connections
-        workflow_builder.add_edge("supervisor", route_to_tool)
-        for tool_name in [w.name for w in template.workers]:
-            workflow_builder.add_edge(tool_name, "supervisor")
+        # Add nodes
+        workflow.add_node("supervisor", supervisor_node)
+        for worker_name in worker_agents:
+            workflow.add_node(worker_name, create_worker_node(worker_name))
         
-        # Add any checkpoint configuration if specified
+        # Add edges
+        # From supervisor to all workers
+        for worker_name in worker_agents:
+            workflow.add_conditional_edges(
+                "supervisor",
+                lambda state, worker=worker_name: state["next"] == worker,
+                {worker_name: "supervisor comes next"}
+            )
+        
+        # From supervisor to end
+        workflow.add_conditional_edges(
+            "supervisor",
+            lambda state: state["next"] == "end",
+            {END: "conversation ended"}
+        )
+        
+        # Set the entry point
+        workflow.set_entry_point("supervisor")
+        
+        # Add checkpointing
         checkpoint_dir = template.workflow_config.get("checkpoint_dir")
         if checkpoint_dir:
-            checkpoint = JsonCheckpoint(checkpoint_dir)
-            workflow = workflow_builder.compile(checkpointer=checkpoint)
+            memory = MemorySaver()
+            compiled_workflow = workflow.compile(checkpointer=memory)
         else:
-            workflow = workflow_builder.compile()
+            compiled_workflow = workflow.compile()
         
-        return workflow
+        return compiled_workflow
     
     def create_swarm_workflow(self, template_name: str):
         """Create a swarm workflow based on a template"""
@@ -277,134 +320,197 @@ class TemplateEngine:
             agent_chain = agent_prompt | agent_llm | StrOutputParser()
             agents[agent_config.name] = agent_chain
         
-        # Build state graph
+        # Define the swarm state
         class SwarmState(BaseModel):
             input: str
             outputs: Dict[str, str] = Field(default_factory=dict)
+            current_agent: Optional[str] = None
+            iterations: int = 0
             final_output: Optional[str] = None
-        
-        workflow_builder = StateGraph(SwarmState)
         
         # Configure interaction pattern based on workflow_config
         interaction_type = template.workflow_config.get("interaction_type", "sequential")
         
         if interaction_type == "sequential":
-            # Simple sequential flow through all agents
-            agent_names = list(agents.keys())
+            # Sequential flow through agents
+            workflow = StateGraph(SwarmState)
+            agent_names = [agent.name for agent in template.agents]
             
-            # Add each agent as a node
-            for agent_name, agent_chain in agents.items():
-                workflow_builder.add_node(
-                    agent_name,
-                    lambda state, agent=agent_chain, name=agent_name: SwarmState(
-                        input=state.input,
-                        outputs={
-                            **state.outputs,
-                            name: agent.invoke({"input": state.input, "previous_outputs": state.outputs})
-                        },
-                        final_output=state.final_output
-                    )
-                )
+            # Create node functions for each agent
+            for i, agent_name in enumerate(agent_names):
+                agent_chain = agents[agent_name]
+                
+                def create_agent_node(agent_name, agent_chain, is_last=False):
+                    def agent_node(state):
+                        # Prepare context with previous agent outputs
+                        context = {
+                            "input": state.input,
+                            "previous_outputs": state.outputs
+                        }
+                        
+                        # Get response from the agent
+                        response = agent_chain.invoke(context)
+                        
+                        # Update state
+                        new_outputs = {**state.outputs, agent_name: response}
+                        
+                        # If this is the last agent, set final output
+                        final_output = None
+                        if is_last:
+                            final_output = "\n\n".join([f"{k}: {v}" for k, v in new_outputs.items()])
+                        
+                        return SwarmState(
+                            input=state.input,
+                            outputs=new_outputs,
+                            current_agent=agent_name,
+                            iterations=state.iterations + 1,
+                            final_output=final_output
+                        )
+                    
+                    return agent_node
+                
+                is_last = (i == len(agent_names) - 1)
+                workflow.add_node(agent_name, create_agent_node(agent_name, agent_chain, is_last))
             
             # Connect agents in sequence
             for i in range(len(agent_names) - 1):
-                workflow_builder.add_edge(agent_names[i], agent_names[i + 1])
-                
-            # Add final node
-            workflow_builder.add_node(
-                "final",
-                lambda state: SwarmState(
-                    input=state.input,
-                    outputs=state.outputs,
-                    final_output="\n\n".join([f"{k}: {v}" for k, v in state.outputs.items()])
-                )
-            )
-            workflow_builder.add_edge(agent_names[-1], "final")
-            workflow_builder.add_edge("final", END)
+                workflow.add_edge(agent_names[i], agent_names[i + 1])
+            
+            # Final node goes to END
+            workflow.add_edge(agent_names[-1], END)
+            
+            # Set entry point
+            workflow.set_entry_point(agent_names[0])
             
         elif interaction_type == "hub_and_spoke":
             # Hub and spoke model with a central coordinator
-            hub_agent = template.workflow_config.get("hub_agent")
-            if not hub_agent or hub_agent not in agents:
+            hub_agent_name = template.workflow_config.get("hub_agent")
+            if not hub_agent_name or hub_agent_name not in agents:
                 raise ValueError("Hub agent not specified or not found in template agents")
             
-            spoke_agents = [name for name in agents.keys() if name != hub_agent]
+            spoke_agents = [name for name in agents.keys() if name != hub_agent_name]
+            workflow = StateGraph(SwarmState)
             
-            # Add hub node
-            workflow_builder.add_node(
-                hub_agent,
-                lambda state, agent=agents[hub_agent], name=hub_agent: SwarmState(
-                    input=state.input,
-                    outputs={
-                        **state.outputs,
-                        name: agent.invoke({"input": state.input, "previous_outputs": state.outputs})
-                    },
-                    final_output=state.final_output
-                )
-            )
-            
-            # Add spoke nodes
-            for agent_name in spoke_agents:
-                workflow_builder.add_node(
-                    agent_name,
-                    lambda state, agent=agents[agent_name], name=agent_name: SwarmState(
-                        input=state.input,
-                        outputs={
-                            **state.outputs,
-                            name: agent.invoke({"input": state.input, "hub_output": state.outputs.get(hub_agent, "")})
-                        },
-                        final_output=state.final_output
-                    )
-                )
+            # Hub node function
+            def hub_node(state):
+                hub_chain = agents[hub_agent_name]
                 
-                # Connect hub to spoke and back
-                workflow_builder.add_edge(hub_agent, agent_name)
-                workflow_builder.add_edge(agent_name, hub_agent)
-            
-            # Add final processing in hub
-            workflow_builder.add_node(
-                "final",
-                lambda state: SwarmState(
-                    input=state.input,
-                    outputs=state.outputs,
-                    final_output=agents[hub_agent].invoke({
+                # For the first iteration, just process the input
+                if state.iterations == 0:
+                    response = hub_chain.invoke({"input": state.input})
+                    return SwarmState(
+                        input=state.input,
+                        outputs={**state.outputs, f"{hub_agent_name}_iteration_{state.iterations}": response},
+                        current_agent=hub_agent_name,
+                        iterations=state.iterations + 1
+                    )
+                else:
+                    # Process with all previous outputs
+                    response = hub_chain.invoke({
                         "input": state.input, 
-                        "all_outputs": state.outputs,
-                        "task": "synthesize_final_answer"
+                        "previous_outputs": state.outputs
                     })
+                    
+                    # Check if we've reached max iterations
+                    max_iterations = template.workflow_config.get("max_iterations", 3)
+                    
+                    if state.iterations >= max_iterations:
+                        # Final synthesis
+                        final_response = hub_chain.invoke({
+                            "input": state.input,
+                            "all_outputs": state.outputs,
+                            "task": "synthesize_final_answer"
+                        })
+                        
+                        return SwarmState(
+                            input=state.input,
+                            outputs=state.outputs,
+                            current_agent=hub_agent_name,
+                            iterations=state.iterations,
+                            final_output=final_response
+                        )
+                    
+                    return SwarmState(
+                        input=state.input,
+                        outputs={**state.outputs, f"{hub_agent_name}_iteration_{state.iterations}": response},
+                        current_agent=hub_agent_name,
+                        iterations=state.iterations + 1
+                    )
+            
+            # Spoke node function factory
+            def create_spoke_node(agent_name):
+                agent_chain = agents[agent_name]
+                
+                def spoke_node(state):
+                    # Get the latest hub output
+                    hub_key = f"{hub_agent_name}_iteration_{state.iterations - 1}"
+                    hub_output = state.outputs.get(hub_key, "")
+                    
+                    # Process with hub's output
+                    response = agent_chain.invoke({
+                        "input": state.input,
+                        "hub_output": hub_output
+                    })
+                    
+                    return SwarmState(
+                        input=state.input,
+                        outputs={**state.outputs, agent_name: response},
+                        current_agent=agent_name,
+                        iterations=state.iterations
+                    )
+                
+                return spoke_node
+            
+            # Add nodes
+            workflow.add_node(hub_agent_name, hub_node)
+            for spoke_name in spoke_agents:
+                workflow.add_node(spoke_name, create_spoke_node(spoke_name))
+            
+            # Add edges
+            # From hub to all spokes
+            for spoke_name in spoke_agents:
+                workflow.add_conditional_edges(
+                    hub_agent_name,
+                    lambda state, s=spoke_name: state.iterations > 0 and state.iterations < template.workflow_config.get("max_iterations", 3),
+                    {spoke_name: "hub to spoke"}
                 )
+            
+            # From all spokes back to hub
+            for spoke_name in spoke_agents:
+                workflow.add_edge(spoke_name, hub_agent_name)
+            
+            # From hub to end when iterations are exhausted or task is complete
+            workflow.add_conditional_edges(
+                hub_agent_name,
+                lambda state: state.iterations >= template.workflow_config.get("max_iterations", 3) or state.final_output is not None,
+                {END: "task complete"}
             )
             
-            # Add conditional edge to determine when to end
-            def should_end(state):
-                # Check if we've completed enough iterations
-                max_iterations = template.workflow_config.get("max_iterations", 3)
-                hub_outputs = [v for k, v in state.outputs.items() if k.startswith(f"{hub_agent}_iteration_")]
-                if len(hub_outputs) >= max_iterations:
-                    return "final"
-                return hub_agent
-            
-            workflow_builder.add_conditional_edges(hub_agent, should_end)
-            workflow_builder.add_edge("final", END)
+            # Set entry point
+            workflow.set_entry_point(hub_agent_name)
         
-        # Add any checkpoint configuration if specified
+        # Add checkpointing
         checkpoint_dir = template.workflow_config.get("checkpoint_dir")
         if checkpoint_dir:
-            checkpoint = JsonCheckpoint(checkpoint_dir)
-            workflow = workflow_builder.compile(checkpointer=checkpoint)
+            memory = MemorySaver()
+            compiled_workflow = workflow.compile(checkpointer=memory)
         else:
-            workflow = workflow_builder.compile()
+            compiled_workflow = workflow.compile()
         
-        return workflow
+        return compiled_workflow
     
     def run_workflow(self, workflow, input_data: Dict[str, Any]):
         """Run a compiled workflow with input data"""
         # Prepare input based on workflow type
         if isinstance(input_data, dict) and "query" in input_data:
-            messages = [{"role": "user", "content": input_data["query"]}]
-            initial_state = {"messages": messages, "action": None}
+            if "messages" in workflow.get_graph().get_inputs_schema().model_json_schema()["properties"]:
+                # For supervisor workflow
+                initial_state = {"messages": [{"role": "user", "content": input_data["query"]}]}
+            else:
+                # For swarm workflow
+                initial_state = {"input": input_data["query"], "outputs": {}, "iterations": 0}
         else:
-            initial_state = {"input": input_data.get("query", ""), "outputs": {}}
+            raise ValueError("Input data must contain a 'query' field")
         
         # Execute workflow
         result = workflow.invoke(initial_state)
