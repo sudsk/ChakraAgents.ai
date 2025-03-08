@@ -50,7 +50,7 @@ const Templates = () => {
   // Fetch templates on component mount
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [fetchTemplates]); // Include fetchTemplates in dependencies
   
   // Apply filters when search or type filter changes
   useEffect(() => {
