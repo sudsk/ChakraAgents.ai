@@ -76,7 +76,7 @@ const Templates = () => {
     }
   }, [templates, searchQuery, typeFilter]);
   
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/templates');
@@ -99,7 +99,7 @@ const Templates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array here is fine if it doesn't use any state/props
   
   const handleCreateTemplate = () => {
     navigate('/templates/new');
