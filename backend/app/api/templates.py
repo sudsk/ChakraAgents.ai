@@ -64,8 +64,7 @@ class TemplateResponse(BaseModel):
     created_by_id: UUID
     config: TemplateConfig
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.get("", response_model=List[TemplateResponse])
 def get_templates(
