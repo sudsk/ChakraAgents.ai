@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // src/components/Sidebar.jsx
 import React from 'react';
 import { Box, VStack, Heading, Icon, Flex, Text, Divider, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody, useBreakpointValue } from '@chakra-ui/react';
