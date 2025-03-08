@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # Add this field
-    ASYNC_DATABASE_URL: Optional[str] = None
+    # ASYNC_DATABASE_URL: Optional[str] = None
     
     @field_validator("DATABASE_URL", mode='before')
     @classmethod
