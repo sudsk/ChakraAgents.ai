@@ -234,9 +234,8 @@ Your job is to understand the product requirements, coordinate with specialists,
 Break down the product request into specific questions for each team member.
 After receiving their input, create a cohesive product specification.
 
-Stage: {task}
 Product request: {input}
-Team input: {all_outputs}
+Team input: {previous_outputs}
 """,
         temperature=0.4
     )
