@@ -58,7 +58,9 @@ const StatCard = ({ title, value, icon, iconColor, helpText }) => {
           </Box>
           <Text fontWeight="medium">{title}</Text>
         </Flex>
-        <StatNumber fontSize="3xl" fontWeight="bold" my={1}>{value}</StatNumber>
+        <Stat>
+          <StatNumber fontSize="3xl" fontWeight="bold" my={1}>{value}</StatNumber>
+        </Stat>  
         <Text fontSize="sm" color="gray.500">{helpText}</Text>
       </CardBody>
     </Card>
