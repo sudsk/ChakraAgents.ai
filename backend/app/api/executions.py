@@ -39,8 +39,7 @@ class ExecutionLogResponse(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ExecutionResponse(BaseModel):
     id: UUID
@@ -53,8 +52,7 @@ class ExecutionResponse(BaseModel):
     error: Optional[str] = None
     logs: Optional[List[ExecutionLogResponse]] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 async def execute_workflow_background(
     workflow_id: UUID,
