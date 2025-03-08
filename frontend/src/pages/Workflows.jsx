@@ -126,36 +126,7 @@ const Workflows = () => {
       navigate('/workflows', { replace: true });
     }
   }, [location, navigate, onOpen]);
-  
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-  
-  // Apply search and status filters
-  useEffect(() => {
-    if (workflows.length > 0) {
-      let filtered = [...workflows];
-      
-      // Apply search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        filtered = filtered.filter(
-          workflow => 
-            workflow.name.toLowerCase().includes(query) ||
-            (workflow.description && workflow.description.toLowerCase().includes(query))
-        );
-      }
-      
-      // Apply status filter
-      if (statusFilter) {
-        filtered = filtered.filter(workflow => workflow.status === statusFilter);
-      }
-      
-      setFilteredWorkflows(filtered);
-    }
-  }, [workflows, searchQuery, statusFilter]);
-  
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -197,6 +168,35 @@ const Workflows = () => {
     }
   }, []); // Include any dependencies it needs
   
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  
+  // Apply search and status filters
+  useEffect(() => {
+    if (workflows.length > 0) {
+      let filtered = [...workflows];
+      
+      // Apply search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(
+          workflow => 
+            workflow.name.toLowerCase().includes(query) ||
+            (workflow.description && workflow.description.toLowerCase().includes(query))
+        );
+      }
+      
+      // Apply status filter
+      if (statusFilter) {
+        filtered = filtered.filter(workflow => workflow.status === statusFilter);
+      }
+      
+      setFilteredWorkflows(filtered);
+    }
+  }, [workflows, searchQuery, statusFilter]);
+ 
   const handleCreateWorkflow = async () => {
     // Validate fields
     if (!newWorkflow.name || !newWorkflow.template_id) {
