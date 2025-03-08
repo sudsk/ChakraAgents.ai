@@ -103,18 +103,22 @@ class ExecutionLog(Base):
 
 # Create indexes for common queries
 # Note: These are SQLAlchemy event listeners that will create indexes when tables are created
-from sqlalchemy import event
+from sqlalchemy import event, text
 
 @event.listens_for(Template.__table__, "after_create")
 def create_template_indexes(target, connection, **kw):
+    # First enable the pg_trgm extension
+    connection.execute(text('CREATE EXTENSION IF NOT EXISTS pg_trgm;'))
     # Index for searching templates by name
-    connection.execute('CREATE INDEX idx_template_name ON templates USING gin (name gin_trgm_ops);')
+    connection.execute(text('CREATE INDEX idx_template_name ON templates USING gin (name gin_trgm_ops);'))
     # Index for filtering templates by workflow_type
-    connection.execute('CREATE INDEX idx_template_workflow_type ON templates (workflow_type);')
+    connection.execute(text('CREATE INDEX idx_template_workflow_type ON templates (workflow_type);'))
 
 @event.listens_for(WorkflowExecution.__table__, "after_create")
 def create_execution_indexes(target, connection, **kw):
+    # First enable the pg_trgm extension
+    connection.execute(text('CREATE EXTENSION IF NOT EXISTS pg_trgm;'))    
     # Index for filtering executions by status
-    connection.execute('CREATE INDEX idx_execution_status ON workflow_executions (status);')
+    connection.execute(text('CREATE INDEX idx_execution_status ON workflow_executions (status);'))
     # Index for sorting executions by start time
-    connection.execute('CREATE INDEX idx_execution_started_at ON workflow_executions (started_at DESC);')
+    connection.execute(text('CREATE INDEX idx_execution_started_at ON workflow_executions (started_at DESC);'))
