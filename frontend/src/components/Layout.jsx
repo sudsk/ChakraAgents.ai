@@ -1,6 +1,7 @@
 // src/components/Layout.jsx
 import React from 'react';
-import { Box, Flex, useDisclosure, Outlet } from '@chakra-ui/react';
+import { Box, Flex, useDisclosure } from '@chakra-ui/react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
