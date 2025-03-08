@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_active_user
 from app.db.models import Template, User
 from app.db.session import get_db
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
