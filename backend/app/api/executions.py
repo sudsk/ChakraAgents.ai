@@ -10,7 +10,7 @@ from app.core.security import get_current_active_user
 from app.db.models import Workflow, WorkflowExecution, ExecutionLog, User, Template
 from app.db.session import get_db
 import app.engine.template_engine as engine  # Import the template engine module
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/workflow-executions", tags=["executions"])
 
