@@ -2,7 +2,8 @@
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, BaseSettings, PostgresDsn, validator
+from pydantic import AnyHttpUrl, PostgresDsn, field_validator, ConfigDict
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # General settings
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     
-    @validator("DATABASE_URL", pre=True)
+    @field_validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v: str) -> str:
         # This function validates the DATABASE_URL format
         # and can handle different database types
@@ -56,10 +57,11 @@ class Settings(BaseSettings):
     MAX_EXECUTION_TIME_MINUTES: int = 30
     MAX_CONCURRENT_EXECUTIONS: int = 5
     
-    class Config:
+    model_config = ConfigDict(
         # Load settings from environment variables
-        env_file = ".env"
-        case_sensitive = True
+        env_file=".env",
+        case_sensitive=True
+    )        
 
 # Create settings instance
 settings = Settings()
