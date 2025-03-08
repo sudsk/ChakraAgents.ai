@@ -84,7 +84,6 @@ const Workflows = () => {
     onOpen: onAlertOpen,
     onClose: onAlertClose
   } = useDisclosure();
-  const queryParams = new URLSearchParams(location.search);
   
   // State
   const [workflows, setWorkflows] = useState([]);
@@ -113,6 +112,9 @@ const Workflows = () => {
   
   // Check if we should open the create modal with a specific template
   useEffect(() => {
+    // Move this inside
+    const queryParams = new URLSearchParams(location.search);
+    
     const templateId = queryParams.get('templateId');
     if (templateId) {
       setNewWorkflow(prev => ({
@@ -123,12 +125,12 @@ const Workflows = () => {
       // Clear the query parameter
       navigate('/workflows', { replace: true });
     }
-  }, [location, queryParams, navigate, onOpen]);
+  }, [location, navigate, onOpen]);
   
   // Fetch data on component mount
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
   
   // Apply search and status filters
   useEffect(() => {
@@ -154,7 +156,7 @@ const Workflows = () => {
     }
   }, [workflows, searchQuery, statusFilter]);
   
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch templates
@@ -193,7 +195,7 @@ const Workflows = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Include any dependencies it needs
   
   const handleCreateWorkflow = async () => {
     // Validate fields
