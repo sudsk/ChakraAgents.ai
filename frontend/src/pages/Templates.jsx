@@ -70,7 +70,7 @@ const Templates = () => {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array here is fine if it doesn't use any state/props
+  }, [toast]); // Empty dependency array here is fine if it doesn't use any state/props
     
   // Fetch templates on component mount
   useEffect(() => {
