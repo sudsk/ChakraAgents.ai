@@ -34,8 +34,7 @@ class WorkflowResponse(BaseModel):
     status: str
     config: Dict[str, Any]
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.get("", response_model=List[WorkflowResponse])
 def get_workflows(
