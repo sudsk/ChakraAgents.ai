@@ -15,7 +15,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 # LangGraph imports
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.utils import pydantic_to_dict
+# No longer needed in LangGraph 0.3.5
+# from langgraph.utils import pydantic_to_dict
 
 logger = logging.getLogger(__name__)
 
