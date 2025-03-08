@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     
-    @field_validator("DATABASE_URL", pre=True)
+    @field_validator("DATABASE_URL", mode='before')
+    @classmethod
     def validate_database_url(cls, v: str) -> str:
         # This function validates the DATABASE_URL format
         # and can handle different database types
