@@ -46,7 +46,32 @@ const Templates = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [templateToDelete, setTemplateToDelete] = useState(null);
-  
+
+  const fetchTemplates = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/templates');
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates');
+      }
+      
+      const data = await response.json();
+      setTemplates(data);
+      setFilteredTemplates(data);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch templates',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []); // Empty dependency array here is fine if it doesn't use any state/props
+    
   // Fetch templates on component mount
   useEffect(() => {
     fetchTemplates();
@@ -75,31 +100,6 @@ const Templates = () => {
       setFilteredTemplates(filtered);
     }
   }, [templates, searchQuery, typeFilter]);
-  
-  const fetchTemplates = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/templates');
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-      
-      const data = await response.json();
-      setTemplates(data);
-      setFilteredTemplates(data);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch templates',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []); // Empty dependency array here is fine if it doesn't use any state/props
   
   const handleCreateTemplate = () => {
     navigate('/templates/new');
