@@ -166,7 +166,7 @@ const Workflows = () => {
     } finally {
       setLoading(false);
     }
-  }, []); // Include any dependencies it needs
+  }, [toast]); // Include any dependencies it needs
   
   // Fetch data on component mount
   useEffect(() => {
