@@ -33,7 +33,8 @@ import {
   AccordionIcon,
   Code,
   Switch,
-  Spinner
+  Spinner,
+  Icon
 } from '@chakra-ui/react';
 import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, FiTool, FiSettings } from 'react-icons/fi';
 
