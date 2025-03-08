@@ -125,7 +125,7 @@ const Workflows = () => {
       // Clear the query parameter
       navigate('/workflows', { replace: true });
     }
-  }, [location, navigate, onOpen]);
+  }, [location, navigate, onOpen, setNewWorkflow]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
