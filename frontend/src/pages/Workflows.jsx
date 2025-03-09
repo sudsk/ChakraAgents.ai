@@ -390,7 +390,7 @@ const Workflows = () => {
       <Flex mb={6} gap={4}>
         <InputGroup maxW="400px">
           <InputLeftElement pointerEvents="none">
-            <FiSearch color="gray.300" />
+            <Icon as={FiSearch} color="gray.300" />
           </InputLeftElement>
           <Input
             placeholder="Search workflows..."
