@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api'; 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -131,29 +132,24 @@ const Workflows = () => {
     setLoading(true);
     try {
       // Fetch templates
-      const templatesResponse = await fetch('/api/templates');
-      if (!templatesResponse.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-      const templatesData = await templatesResponse.json();
-      setTemplates(templatesData);
-      
+      const templatesData = await apiClient.get('/api/templates');
+      if (templatesData) {
+        setTemplates(templatesData);
+      }      
+     
       // Fetch workflows
-      const workflowsResponse = await fetch('/api/workflows');
-      if (!workflowsResponse.ok) {
-        throw new Error('Failed to fetch workflows');
-      }
-      const workflowsData = await workflowsResponse.json();
-      setWorkflows(workflowsData);
-      setFilteredWorkflows(workflowsData);
+      const workflowsData = await apiClient.get('/api/workflows');
+      if (workflowsData) {
+        setWorkflows(workflowsData);
+        setFilteredWorkflows(workflowsData);
+      }      
       
       // Fetch recent executions
-      const executionsResponse = await fetch('/api/workflow-executions/recent?limit=10');
-      if (!executionsResponse.ok) {
-        throw new Error('Failed to fetch executions');
-      }
-      const executionsData = await executionsResponse.json();
-      setExecutions(executionsData);
+      const executionsData = await apiClient.get('/api/workflow-executions/recent?limit=10');
+      if (executionsData) {
+        setExecutions(executionsData);
+      }      
+
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
