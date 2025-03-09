@@ -310,3 +310,38 @@ PM's notes: {hub_output}
         "writing_assistant": writing_assistant_template,
         "product_development_team": product_team_template
     }
+
+# Add to backend/app/engine/template_presets.py
+def create_rag_assistant_template(engine):
+    """Create a RAG-enabled assistant template"""
+    research_agent = AgentConfig(
+        name="rag_assistant",
+        role=AgentRole.RESEARCHER,
+        model_provider=AgentModelProvider.VERTEX_AI,
+        model_name="gemini-1.5-pro",
+        prompt_template="""You are a research assistant with access to a knowledge base.
+First, search the knowledge base for relevant information about the user's query.
+Then, provide a comprehensive answer based on the retrieved information.
+If the knowledge base doesn't contain relevant information, say so and provide your best answer.
+
+User query: {input}
+""",
+        tools=["retrieve_information", "web_search"],
+        temperature=0.3
+    )
+    
+    rag_template = SwarmTemplate(
+        name="rag_assistant",
+        description="A research assistant with RAG capabilities",
+        agents=[research_agent],
+        tools=[engine.tools_registry["retrieve_information"]["definition"], 
+               engine.tools_registry["web_search"]["definition"]],
+        workflow_config={
+            "interaction_type": "sequential",
+            "max_iterations": 1,
+            "checkpoint_dir": "./checkpoints/rag_assistant"
+        }
+    )
+    
+    engine.register_swarm_template(rag_template)
+    return rag_template
