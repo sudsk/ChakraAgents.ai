@@ -521,3 +521,20 @@ class TemplateEngine:
 def search_web(query: str) -> str:
     """Simulated web search tool"""
     return f"Web search results for: {query}\n1. Result 1\n2. Result 2\n3. Result 3"
+
+def register_rag_tool(self, vector_store_manager):
+    """Register RAG tool with the engine"""
+    from app.engine.tools.rag_tool import RAGTool
+    
+    rag_tool = RAGTool(vector_store_manager)
+    tool_def = rag_tool.get_tool_definition()
+    
+    self.register_tool(
+        ToolDefinition(
+            name=tool_def["name"],
+            description=tool_def["description"],
+            function_name=tool_def["function_name"],
+            parameters=tool_def["parameters"]
+        ),
+        rag_tool.retrieve_information
+    )
