@@ -48,7 +48,7 @@ const SidebarContent = () => (
         <FiGrid size="24px" />
       </Box>
       <Heading size="md" fontWeight="bold">
-        Agentic AI
+        ChakraAgents.ai
       </Heading>
     </Flex>
     
