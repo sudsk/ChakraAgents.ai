@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -50,14 +51,11 @@ const Templates = () => {
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/templates');
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-      
-      const data = await response.json();
-      setTemplates(data);
-      setFilteredTemplates(data);
+      const templatesData = await apiClient.get('/api/templates');
+      if (templatesData) {
+        setTemplates(templatesData);
+        setFilteredTemplates(templatesData);      
+      }      
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast({
