@@ -121,27 +121,27 @@ const apiClient = new ApiClient();
 
 // Templates API
 export const templatesApi = {
-  getAll: () => apiClient.get('/templates'),
-  getById: (id) => apiClient.get(`/templates/${id}`),
-  create: (data) => apiClient.post('/templates', data),
-  update: (id, data) => apiClient.put(`/templates/${id}`, data),
-  delete: (id) => apiClient.delete(`/templates/${id}`),
+  getAll: () => apiClient.get('/api/templates'),
+  getById: (id) => apiClient.get(`/api/templates/${id}`),
+  create: (data) => apiClient.post('/api/templates', data),
+  update: (id, data) => apiClient.put(`/api/templates/${id}`, data),
+  delete: (id) => apiClient.delete(`/api/templates/${id}`),
 };
 
 // Workflows API
 export const workflowsApi = {
-  getAll: () => apiClient.get('/workflows'),
-  getById: (id) => apiClient.get(`/workflows/${id}`),
-  create: (data) => apiClient.post('/workflows', data),
-  update: (id, data) => apiClient.put(`/workflows/${id}`, data),
-  delete: (id) => apiClient.delete(`/workflows/${id}`),
+  getAll: () => apiClient.get('/api/workflows'),
+  getById: (id) => apiClient.get(`/api/workflows/${id}`),
+  create: (data) => apiClient.post('/api/workflows', data),
+  update: (id, data) => apiClient.put(`/api/workflows/${id}`, data),
+  delete: (id) => apiClient.delete(`/api/workflows/${id}`),
 };
 
 // Executions API
 export const executionsApi = {
-  getAll: (limit = 10) => apiClient.get('/workflow-executions/recent', { limit }),
-  getById: (id) => apiClient.get(`/workflow-executions/${id}`),
-  create: (data) => apiClient.post('/workflow-executions', data),
+  getAll: (limit = 10) => apiClient.get('/api/workflow-executions/recent', { limit }),
+  getById: (id) => apiClient.get(`/api/workflow-executions/${id}`),
+  create: (data) => apiClient.post('/api/workflow-executions', data),
 };
 
 // Settings API
