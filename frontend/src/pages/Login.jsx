@@ -85,7 +85,7 @@ const Login = () => {
         <VStack spacing={4} align="center" mb={8}>
           <Flex align="center">
             <Icon as={FiGrid} color="brand.500" w={8} h={8} mr={2} />
-            <Heading>Agentic AI</Heading>
+            <Heading>ChakraAgents.ai</Heading>
           </Flex>
           <Text>Sign in to access your account</Text>
         </VStack>
