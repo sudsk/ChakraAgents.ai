@@ -45,7 +45,7 @@ const Header = ({ onOpenSidebar }) => {
       
       <InputGroup w={{ base: "auto", md: "400px" }} size="md">
         <InputLeftElement pointerEvents="none">
-          <FiSearch color="gray.400" />
+          <FiSearch color="#A0AEC0" />
         </InputLeftElement>
         <Input
           placeholder="Search workflows, templates..."
