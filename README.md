@@ -1,10 +1,10 @@
-# Samkhya.ai
+# ChakraAgents.ai
 
 A platform for creating, deploying, and managing multi-agent AI workflows using LangChain and LangGraph.
 
 ## Overview
 
-Agentic AI as a Service is a platform that allows users to create and manage complex AI agent systems using templates. It supports both "supervisor" (hierarchical) and "swarm" (collaborative) architectures for multi-agent systems.
+ChakraAgents.ai is an Agentic AI aaS platform that allows users to create and manage complex AI agent systems using templates. It supports both "supervisor" (hierarchical) and "swarm" (collaborative) architectures for multi-agent systems.
 
 Key features:
 - Template-based agent creation
@@ -49,7 +49,7 @@ The platform consists of:
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/sudsk/samkhya.ai.git
+   git clone https://github.com/sudsk/ChakraAgents.ai.git
    cd samkhya.ai/backend
    ```
 
