@@ -36,11 +36,33 @@ class AuthService {
    */
   async login(email, password) {
     try {
-      const response = await apiClient.post('/auth/login', { email, password });
+      // Create URLSearchParams - this is the proper format for sending form data
+      const formData = new URLSearchParams();
+      formData.append('username', email); // Note: OAuth2 form uses 'username'
+      formData.append('password', password);
+
+      // Make the request with application/x-www-form-urlencoded content type       
+      const response = await fetch(`${apiClient.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
       
-      if (response.access_token) {
-        this.token = response.access_token;
-        this.user = response.user;
+      // Handle non-2xx responses
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to login');
+      }
+      
+      // Parse the successful response
+      const data = await response.json();
+            
+      
+      if (data.access_token) {
+        this.token = data.access_token;
+        this.user = data.user;      
         
         // Store auth data in localStorage
         localStorage.setItem('auth_token', this.token);
@@ -81,7 +103,7 @@ class AuthService {
     
     try {
       // Validate token with backend
-      const response = await apiClient.get('/auth/validate');
+      const response = await apiClient.get('/api/auth/validate');
       return !!response.valid;
     } catch (error) {
       console.error('Auth validation error:', error);
