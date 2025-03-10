@@ -207,19 +207,7 @@ const Workflows = () => {
     }
     
     try {
-      const response = await fetch('/api/workflows', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newWorkflow),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create workflow');
-      }
-      
-      const createdWorkflow = await response.json();
+      const createdWorkflow = await apiClient.post('/api/workflows', newWorkflow);      
       
       // Reset form
       setNewWorkflow({
@@ -246,7 +234,7 @@ const Workflows = () => {
       console.error('Error creating workflow:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to create workflow',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -258,16 +246,11 @@ const Workflows = () => {
     if (!deleteWorkflowId) return;
     
     try {
-      const response = await fetch(`/api/workflows/${deleteWorkflowId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete workflow');
-      }
+      await apiClient.delete(`/api/workflows/${deleteWorkflowId}`);
       
       // Remove from state
       setWorkflows(workflows.filter(w => w.id !== deleteWorkflowId));
+      setFilteredWorkflows(prev => prev.filter(w => w.id !== deleteWorkflowId));  
       
       toast({
         title: 'Success',
@@ -280,7 +263,7 @@ const Workflows = () => {
       console.error('Error deleting workflow:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to delete workflow',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -303,19 +286,7 @@ const Workflows = () => {
   
   const handleRunWorkflow = async () => {
     try {
-      const response = await fetch('/api/workflow-executions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(runWorkflowData),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to run workflow');
-      }
-      
-      const executionData = await response.json();
+      const executionData = await apiClient.post('/api/workflow-executions', runWorkflowData);
       
       // Close modal
       setIsRunModalOpen(false);
@@ -334,7 +305,7 @@ const Workflows = () => {
       console.error('Error running workflow:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to run workflow',
         status: 'error',
         duration: 5000,
         isClosable: true,
