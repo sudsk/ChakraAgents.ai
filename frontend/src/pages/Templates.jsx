@@ -107,39 +107,6 @@ const Templates = () => {
     navigate(`/templates/${templateId}`);
   };
 
-  const handleRunTemplate = async (templateId) => {
-    try {
-      setLoading(true);
-      
-      const executionData = await apiClient.post('/api/workflow-executions', {
-        template_id: templateId,
-        input_data: { query: "Default execution" }
-      });
-      
-      toast({
-        title: 'Execution started',
-        description: 'Template execution has been initiated successfully',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // Redirect to the execution details page
-      navigate(`/workflow-executions/${executionData.id}`);
-    } catch (error) {
-      console.error('Error executing template:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to execute template',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };  
-  
   const confirmDeleteTemplate = (template) => {
     setTemplateToDelete(template);
     onOpen();
@@ -357,15 +324,6 @@ const Templates = () => {
                         }
                       </Text>
                     </HStack>
-                    
-                    <Button
-                      rightIcon={<FiPlay />}
-                      size="sm"
-                      colorScheme="brand"
-                      onClick={() => handleRunTemplate(template.id)}
-                    >
-                      Run
-                    </Button>
                   </Flex>
                 </Flex>
               </CardBody>
