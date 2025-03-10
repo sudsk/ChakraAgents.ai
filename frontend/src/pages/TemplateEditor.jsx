@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -291,38 +292,40 @@ const TemplateEditor = () => {
   
   // Fetch template data if editing existing template
   useEffect(() => {
-    if (id) {
-      setLoading(true);
-      fetch(`/api/templates/${id}`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Template not found');
-          }
-          return response.json();
-        })
-        .then(data => {
-          // Transform API response to component state format
-          setTemplate({
-            id: data.id,
-            name: data.name,
-            description: data.description || '',
-            workflow_type: data.workflow_type,
-            config: data.config
-          });
-          setLoading(false);
-        })
-        .catch(error => {
-          console.error('Error fetching template:', error);
-          toast({
-            title: 'Error loading template',
-            description: error.message,
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
-          setLoading(false);
-          navigate('/templates');
+    const fetchTemplate = async () => {
+      try {
+        setLoading(true);
+        // Get template data using apiClient
+        const data = await apiClient.get(`/api/templates/${id}`);  
+
+        // Transform API response to component state format
+        setTemplate({
+          id: data.id,
+          name: data.name,
+          description: data.description || '',
+          workflow_type: data.workflow_type,
+          config: data.config
         });
+      } catch (error) {
+        console.error('Error fetching template:', error);
+        toast({
+          title: 'Error loading template',
+          description: error.message || 'Failed to load template',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+
+        // Navigate back to templates list on error
+        navigate('/templates');
+      } finally {
+        setLoading(false);
+      }
+    };
+        
+    if (id) {
+      // Fetch existing template data
+      fetchTemplate();
     } else {
       // Initialize with default supervisor agent for new templates
       const defaultAgent = {
@@ -591,23 +594,15 @@ const TemplateEditor = () => {
     setSaving(true);
     
     try {
-      const url = id ? `/api/templates/${id}` : '/api/templates';
-      const method = id ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(template),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save template');
+      let savedTemplate;
+      if (id) {
+        // Update existing template
+        savedTemplate = await apiClient.put(`/api/templates/${id}`, template);
+      } else {
+        // Create new template
+        savedTemplate = await apiClient.post('/api/templates', template);
       }
-      
-      const savedTemplate = await response.json();
-      
+
       toast({
         title: 'Success',
         description: `Template ${id ? 'updated' : 'created'} successfully`,
@@ -622,7 +617,7 @@ const TemplateEditor = () => {
       console.error('Error saving template:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to save template',
         status: 'error',
         duration: 5000,
         isClosable: true,
