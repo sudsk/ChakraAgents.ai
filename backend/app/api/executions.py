@@ -80,25 +80,8 @@ async def execute_workflow_background(
         db.commit()
         
         # Initialize the template engine and run the workflow
-        # This is a simplified placeholder - actual implementation would depend on your engine
-        # engine_instance = engine.TemplateEngine()
-        # result = await engine_instance.execute_workflow(template, workflow, input_data)
-        
-        # For demonstration, we'll create a mock result
-        import asyncio
-        import random
-        # Simulate processing time
-        await asyncio.sleep(5)
-        
-        # Generate a mock result
-        result = {
-            "success": random.choice([True, True, True, False]),  # 75% success rate
-            "outputs": {
-                "agent1": "This is output from agent 1",
-                "agent2": "This is output from agent 2"
-            },
-            "final_output": "Final synthesis of all agent outputs"
-        }
+        engine_instance = engine.TemplateEngine()
+        result = await engine_instance.execute_workflow(template, workflow, input_data)
         
         # Update execution with result
         execution.completed_at = datetime.utcnow()
