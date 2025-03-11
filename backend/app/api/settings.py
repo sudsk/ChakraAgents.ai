@@ -57,14 +57,14 @@ GLOBAL_SETTINGS = {
     }
 }
 
-@router.get("")
+@router.get("/settings")
 async def get_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     return GLOBAL_SETTINGS
 
-@router.put("")
+@router.put("/settings")
 async def update_settings(
     settings: SettingsModel,
     db: Session = Depends(get_db),
