@@ -78,8 +78,8 @@ class WorkflowExecution(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     status = Column(String, default="running")  # running, completed, failed
-    input_data = Column(JSONB, nullable=True)  # Input parameters
-    result = Column(JSONB, nullable=True)  # Execution result
+    input_data = Column(JSONB, nullable=True, default={})  # Input parameters
+    result = Column(JSONB, nullable=True, default={})  # Execution result
     error = Column(Text, nullable=True)  # Error message if failed
     checkpoint_path = Column(String, nullable=True)  # Path to checkpoint file
 
