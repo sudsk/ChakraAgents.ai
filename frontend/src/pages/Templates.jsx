@@ -116,13 +116,7 @@ const Templates = () => {
     if (!templateToDelete) return;
     
     try {
-      const response = await fetch(`/api/templates/${templateToDelete.id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete template');
-      }
+      await apiClient.delete(`/api/templates/${templateToDelete.id}`);      
       
       // Remove from state
       setTemplates(templates.filter(t => t.id !== templateToDelete.id));
@@ -158,18 +152,8 @@ const Templates = () => {
         id: undefined // Remove ID so a new one is generated
       };
       
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(duplicatedTemplate),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to duplicate template');
-      }
-      
+      await apiClient.post('/api/templates', duplicatedTemplate);
+          
       // Refresh templates list
       fetchTemplates();
       
