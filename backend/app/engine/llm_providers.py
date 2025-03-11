@@ -27,14 +27,17 @@ class LLMProviderManager:
     def _initialize_providers(self):
         """Initialize connections to available LLM providers"""
         # Initialize Vertex AI if configured
+        print("VERTEX_AI_PROJECT_ID:",settings.VERTEX_AI_PROJECT_ID);
         if settings.VERTEX_AI_PROJECT_ID:
             self.providers["vertex_ai"] = self._create_vertex_ai_provider()
         
         # Initialize OpenAI if configured
+        print("OPENAI_API_KEY:",settings.OPENAI_API_KEY);
         if settings.OPENAI_API_KEY:
             self.providers["openai"] = self._create_openai_provider()
         
         # Initialize Anthropic if configured
+        print("ANTHROPIC_API_KEY:",settings.ANTHROPIC_API_KEY);
         if settings.ANTHROPIC_API_KEY:
             self.providers["anthropic"] = self._create_anthropic_provider()
             
