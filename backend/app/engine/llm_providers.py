@@ -32,10 +32,7 @@ class LLMProviderManager:
         
         # Initialize OpenAI if configured
         if settings.OPENAI_API_KEY:
-            try:
-                self.providers["openai"] = self._create_openai_provider()
-            except Exception as e:
-                logger.warning(f"Failed to initialize OpenAI provider: {str(e)}")
+           self.providers["openai"] = self._create_openai_provider()
         
         # Initialize Anthropic if configured
         if settings.ANTHROPIC_API_KEY:
@@ -59,42 +56,12 @@ class LLMProviderManager:
     
     def _create_openai_provider(self):
         """Create an OpenAI provider instance"""
-        # Log all potential sources of the API key
-        print("OpenAI API Key Sources:")
-        print(f"Settings: {settings.OPENAI_API_KEY}")
-        print(f"Environment Variable: {os.environ.get('OPENAI_API_KEY')}")      
-        try:
-            # Explicitly set the API key in multiple ways
-            openai.api_key = settings.OPENAI_API_KEY
-            os.environ['OPENAI_API_KEY'] = settings.OPENAI_API_KEY
-            
-            # Attempt to create the OpenAI client directly to check key validity
-            test_client = openai.OpenAI()
-            test_client.models.list(limit=1)  # Minimal API call to verify key
-            
+        if LANGCHAIN_AVAILABLE:
             return {
                 "models": {
                     "gpt-4o": ChatOpenAI(model="gpt-4o", openai_api_key=settings.OPENAI_API_KEY),
                     "gpt-4-turbo": ChatOpenAI(model="gpt-4-turbo", openai_api_key=settings.OPENAI_API_KEY),
                     "gpt-3.5-turbo": ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=settings.OPENAI_API_KEY),
-                }
-            }
-        except Exception as e:
-            logger.error(f"OpenAI Provider Initialization Error: {str(e)}")
-            logger.error(f"Error Type: {type(e)}")
-            
-            # More detailed error logging
-            import traceback
-            traceback.print_exc()
-            
-            # Raise the original exception to maintain current error handling
-            raise            
-        if LANGCHAIN_AVAILABLE:
-            return {
-                "models": {
-                    "gpt-4o": ChatOpenAI(model="gpt-4o"),
-                    "gpt-4-turbo": ChatOpenAI(model="gpt-4-turbo"),
-                    "gpt-3.5-turbo": ChatOpenAI(model="gpt-3.5-turbo"),
                 }
             }
         else:
