@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api';
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -124,11 +125,27 @@ const Settings = () => {
   
   // Fetch settings on component mount
   useEffect(() => {
-    // This would be replaced with an actual API call
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
-  }, []);
+    const fetchSettings = async () => {
+      try {
+        // This would use the API client instead
+        const settingsData = await apiClient.get('/api/settings');
+        setSettings(settingsData);
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to load settings',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSettings();
+  }, [toast]);
   
   const handleSettingsChange = (category, key, value) => {
     setSettings({
@@ -180,7 +197,7 @@ const Settings = () => {
     
     try {
       // This would be replaced with an actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await apiClient.put('/api/settings', settings);
       
       toast({
         title: 'Settings saved',
@@ -193,7 +210,7 @@ const Settings = () => {
       console.error('Error saving settings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save settings',
+        description: error.message || 'Failed to save settings',
         status: 'error',
         duration: 5000,
         isClosable: true,
