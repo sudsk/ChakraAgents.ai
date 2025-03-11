@@ -77,7 +77,7 @@ async def get_workflow_execution(
         "status": execution.status,
         "input_data": execution.input_data,
         "result": execution.result,
-        "started_at": execution.created_at.isoformat(),
+        "started_at": execution.created_at.isoformat() if execution.created_at else None,
         "workflow_name": workflow.name if workflow else "Unknown"
     }
     
