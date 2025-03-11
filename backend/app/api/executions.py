@@ -75,7 +75,7 @@ async def get_workflow_execution(
         "id": str(execution.id),
         "workflow_id": str(execution.workflow_id),
         "status": execution.status,
-        "input_data": execution.input_data,
+        "input_data": execution.input_data or {},
         "result": execution.result,
         "started_at": execution.created_at.isoformat() if execution.created_at else None,
         "workflow_name": workflow.name if workflow else "Unknown"
@@ -102,8 +102,8 @@ async def get_recent_executions(
         execution_data = {
             "id": str(execution.id),
             "workflow_id": str(execution.workflow_id),
-            "status": execution.status,
-            "started_at": execution.created_at.isoformat(),
+            "status": execution.status or "unknown",
+            "started_at": execution.created_at.isoformat() if execution.created_at else None,
             "workflow_name": workflow.name if workflow else "Unknown"
         }
         
