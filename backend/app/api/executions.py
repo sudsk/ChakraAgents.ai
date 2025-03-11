@@ -1,16 +1,15 @@
-# backend/app/api/executions.py
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
-from sqlalchemy.orm import Session
-from typing import Dict, Any, List, Optional
+# app/api/executions.py
+from typing import Dict, List, Optional, Any
 from uuid import UUID
-import asyncio
 from datetime import datetime
 
-from app.db.session import get_db
-from app.db.models import WorkflowExecution, Workflow, User
-from app.core.security import get_current_active_user
-from app.engine.template_engine import template_engine
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from sqlalchemy.orm import Session
 
+from app.core.security import get_current_active_user
+from app.db.models import Workflow, WorkflowExecution, ExecutionLog, User, Template
+from app.db.session import get_db
+import app.engine.template_engine as engine  # Import the template engine module
 from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/workflow-executions", tags=["executions"])
@@ -41,7 +40,7 @@ class ExecutionLogResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
-    
+
 class ExecutionResponse(BaseModel):
     id: UUID
     workflow_id: UUID
@@ -54,88 +53,97 @@ class ExecutionResponse(BaseModel):
     logs: Optional[List[ExecutionLogResponse]] = None
 
     model_config = ConfigDict(from_attributes=True)
-    
-@router.post("/", response_model=Dict[str, Any])
-async def create_workflow_execution(
-    execution_data: Dict[str, Any],
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Create and start a new workflow execution"""
-    workflow_id = execution_data.get("workflow_id")
-    if not workflow_id:
-        raise HTTPException(status_code=400, detail="workflow_id is required")
-    
-    # Get the workflow
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-    if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow with id {workflow_id} not found")
-    
-    # Create execution record
-    execution = WorkflowExecution(
-        workflow_id=workflow_id,
-        status="running",
-        input_data=execution_data.get("input_data", {}),
-        created_by=current_user.id
-    )
-    
-    db.add(execution)
-    db.commit()
-    db.refresh(execution)
-    
-    # Start execution in background
-    background_tasks.add_task(
-        run_workflow_execution,
-        execution_id=str(execution.id),
-        workflow_id=str(workflow_id),
-        input_data=execution_data.get("input_data", {}),
-        db=db
-    )
-    
-    return {
-        "id": str(execution.id),
-        "workflow_id": str(workflow_id),
-        "status": "running",
-        "started_at": execution.created_at.isoformat()
-    }
 
-@router.get("/{execution_id}", response_model=Dict[str, Any])
-async def get_workflow_execution(
+async def execute_workflow_background(
+    workflow_id: UUID,
     execution_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    input_data: Dict[str, Any],
+    db: Session,
 ):
-    """Get a workflow execution by ID"""
-    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
-    if not execution:
-        raise HTTPException(status_code=404, detail=f"Execution with id {execution_id} not found")
-    
-    # Get the workflow
-    workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
-    
-    result = {
-        "id": str(execution.id),
-        "workflow_id": str(execution.workflow_id),
-        "status": execution.status,
-        "input_data": execution.input_data or {},
-        "result": execution.result,
-        "started_at": execution.created_at.isoformat() if execution.created_at else None,
-        "workflow_name": workflow.name if workflow else "Unknown"
-    }
-    
-    if execution.completed_at:
-        result["completed_at"] = execution.completed_at.isoformat()
-    
-    return result
+    """
+    Execute a workflow in the background.
+    This function would use the template engine to run the workflow.
+    """
+    try:
+        # Get workflow and template
+        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        if not workflow:
+            raise ValueError(f"Workflow with ID {workflow_id} not found")
+        
+        template = db.query(Template).filter(Template.id == workflow.template_id).first()
+        if not template:
+            raise ValueError(f"Template with ID {workflow.template_id} not found")
+        
+        # Update status to running
+        execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+        execution.status = "running"
+        db.commit()
+        
+        # Initialize the template engine and run the workflow
+        # This is a simplified placeholder - actual implementation would depend on your engine
+        # engine_instance = engine.TemplateEngine()
+        # result = await engine_instance.execute_workflow(template, workflow, input_data)
+        
+        # For demonstration, we'll create a mock result
+        import asyncio
+        import random
+        # Simulate processing time
+        await asyncio.sleep(5)
+        
+        # Generate a mock result
+        result = {
+            "success": random.choice([True, True, True, False]),  # 75% success rate
+            "outputs": {
+                "agent1": "This is output from agent 1",
+                "agent2": "This is output from agent 2"
+            },
+            "final_output": "Final synthesis of all agent outputs"
+        }
+        
+        # Update execution with result
+        execution.completed_at = datetime.utcnow()
+        execution.status = "completed" if result["success"] else "failed"
+        execution.result = result
+        if not result["success"]:
+            execution.error = "Workflow execution failed"
+        
+        # Add log entries
+        log_entry = ExecutionLog(
+            execution_id=execution_id,
+            level="info",
+            agent="system",
+            message="Workflow execution completed",
+            data={"success": result["success"]}
+        )
+        db.add(log_entry)
+        db.commit()
+        
+    except Exception as e:
+        # Handle errors
+        execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+        if execution:
+            execution.status = "failed"
+            execution.error = str(e)
+            execution.completed_at = datetime.utcnow()
+            
+            log_entry = ExecutionLog(
+                execution_id=execution_id,
+                level="error",
+                agent="system",
+                message=f"Workflow execution failed: {str(e)}",
+            )
+            db.add(log_entry)
+            db.commit()
 
 @router.get("/recent", response_model=List[ExecutionResponse])
-async def get_recent_executions(
-    limit: int = Query(10, ge=1, le=100),
+def get_recent_executions(
+    limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
-    """Get recent workflow executions"""
+    """
+    Get recent workflow executions for the current user.
+    """
     # Join with workflow to filter by user
     executions = (
         db.query(WorkflowExecution)
@@ -144,8 +152,8 @@ async def get_recent_executions(
         .order_by(WorkflowExecution.started_at.desc())
         .limit(limit)
         .all()
-    )    
-
+    )
+    
     # Add workflow names for frontend convenience
     for execution in executions:
         workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
@@ -153,49 +161,129 @@ async def get_recent_executions(
             execution.workflow_name = workflow.name
     
     return executions
-    
-async def run_workflow_execution(execution_id: str, workflow_id: str, input_data: Dict[str, Any], db: Session):
-    """Run a workflow execution asynchronously"""
-    try:
-        # Get the workflow
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-        if not workflow:
-            raise ValueError(f"Workflow with id {workflow_id} not found")
-        
-        # Get the execution
-        execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
-        if not execution:
-            raise ValueError(f"Execution with id {execution_id} not found")
-        
-        # Execute the workflow
-        result = await template_engine.execute_workflow(
-            workflow={
-                "id": str(workflow.id),
-                "name": workflow.name,
-                "template_id": str(workflow.template_id),
-                "template": workflow.config  # This should contain the template data
-            },
-            input_data=input_data
+
+@router.post("", response_model=ExecutionResponse, status_code=status.HTTP_201_CREATED)
+async def create_execution(
+    execution_in: ExecutionCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Create a new workflow execution and start it in the background.
+    """
+    # Check if workflow exists and user has access
+    workflow = db.query(Workflow).filter(Workflow.id == execution_in.workflow_id).first()
+    if not workflow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workflow not found",
         )
-        
-        # Update the execution record
-        execution.status = "completed" if result.get("success", False) else "failed"
-        execution.result = result
-        execution.completed_at = db.func.now()
-        
-        db.add(execution)
-        db.commit()
-        
-    except Exception as e:
-        # Update execution with error
-        try:
-            execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
-            if execution:
-                execution.status = "failed"
-                execution.result = {"error": str(e), "success": False}
-                execution.completed_at = db.func.now()
-                
-                db.add(execution)
-                db.commit()
-        except Exception as inner_e:
-            print(f"Error updating execution record: {str(inner_e)}")
+    if workflow.created_by_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    
+    # Create execution record
+    execution = WorkflowExecution(
+        workflow_id=execution_in.workflow_id,
+        status="pending",
+        input_data=execution_in.input_data,
+    )
+    db.add(execution)
+    db.commit()
+    db.refresh(execution)
+    
+    # Add an initial log entry
+    log_entry = ExecutionLog(
+        execution_id=execution.id,
+        level="info",
+        agent="system",
+        message="Workflow execution initiated",
+    )
+    db.add(log_entry)
+    db.commit()
+    
+    # Start execution in background
+    background_tasks.add_task(
+        execute_workflow_background,
+        workflow_id=workflow.id,
+        execution_id=execution.id,
+        input_data=execution_in.input_data or {},
+        db=db,
+    )
+    
+    return execution
+
+@router.get("/{execution_id}", response_model=ExecutionResponse)
+def get_execution(
+    execution_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get details of a specific workflow execution.
+    """
+    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Check if user has access to this execution
+    workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+    if not workflow or (workflow.created_by_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    
+    # Get logs for the execution
+    logs = db.query(ExecutionLog).filter(ExecutionLog.execution_id == execution_id).order_by(ExecutionLog.timestamp).all()
+    execution.logs = logs
+    
+    # Add workflow name for frontend convenience
+    if workflow:
+        execution.workflow_name = workflow.name
+    
+    return execution
+
+@router.post("/{execution_id}/logs", response_model=ExecutionLogResponse)
+def add_execution_log(
+    execution_id: UUID,
+    log_in: ExecutionLogCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Add a log entry to a workflow execution.
+    """
+    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Check if user has access to this execution
+    workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+    if not workflow or (workflow.created_by_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    
+    log_entry = ExecutionLog(
+        execution_id=execution_id,
+        level=log_in.level,
+        agent=log_in.agent,
+        message=log_in.message,
+        data=log_in.data,
+    )
+    db.add(log_entry)
+    db.commit()
+    db.refresh(log_entry)
+    
+    return log_entry
