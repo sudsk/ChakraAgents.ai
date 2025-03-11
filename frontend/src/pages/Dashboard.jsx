@@ -26,7 +26,8 @@ import {
   HStack,
   VStack,
   Icon,
-  Divider
+  Divider,
+  useToast
 } from '@chakra-ui/react';
 import { FiCpu, FiActivity, FiCheckCircle, FiAlertCircle, FiEdit, FiPlay, FiClipboard, FiFileText, FiEye } from 'react-icons/fi';
 import { LineChart, PieChart, BarChart, Line, Bar, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
@@ -81,6 +82,7 @@ const AgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('templates');
   const navigate = useNavigate();
+  const toast = useToast();
   
   useEffect(() => {
     const fetchDashboardData = async () => {
