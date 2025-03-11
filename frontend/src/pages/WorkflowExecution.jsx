@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -92,33 +93,21 @@ const WorkflowExecution = () => {
       setLoading(true);
       try {
         // Fetch execution
-        const executionResponse = await fetch(`/api/workflow-executions/${executionId}`);
-        if (!executionResponse.ok) {
-          throw new Error('Failed to fetch execution data');
-        }
-        const executionData = await executionResponse.json();
-        setExecution(executionData);
+        const executionData = await apiClient.get(`/api/workflow-executions/${executionId}`);
+        setExecution(executionDa
         
         // Fetch workflow
-        const workflowResponse = await fetch(`/api/workflows/${id}`);
-        if (!workflowResponse.ok) {
-          throw new Error('Failed to fetch workflow data');
-        }
-        const workflowData = await workflowResponse.json();
+        const workflowData = await apiClient.get(`/api/workflows/${id}`);
         setWorkflow(workflowData);
         
         // Fetch template
-        const templateResponse = await fetch(`/api/templates/${workflowData.template_id}`);
-        if (!templateResponse.ok) {
-          throw new Error('Failed to fetch template data');
-        }
-        const templateData = await templateResponse.json();
+        const templateData = await apiClient.get(`/api/templates/${workflowData.template_id}`);
         setTemplate(templateData);
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
           title: 'Error',
-          description: error.message,
+          description: error.message || 'Failed to fetch execution data',
           status: 'error',
           duration: 5000,
           isClosable: true,
