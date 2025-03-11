@@ -45,11 +45,11 @@ async def health_check():
     return {"status": "healthy", "service": settings.APP_NAME}
 
 # Include routers
-app.include_router(auth.router, prefix=settings.API_V1_STR)
-app.include_router(templates.router, prefix=settings.API_V1_STR)
-app.include_router(workflows.router, prefix=settings.API_V1_STR)
-app.include_router(executions.router, prefix=settings.API_V1_STR)
-app.include_router(settings_router.router, prefix=f"{settings.API_V1_STR}/settings",tags=["settings"])
+app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["authentication"])
+app.include_router(templates.router, prefix=settings.API_V1_STR, tags=["templates"])
+app.include_router(workflows.router, prefix=settings.API_V1_STR, tags=["workflows"])
+app.include_router(executions.router, prefix=settings.API_V1_STR, tags=["executions"])
+app.include_router(settings_router.router, prefix=settings.API_V1_STR, tags=["settings"])
 
 # Add exception handlers
 @app.exception_handler(Exception)
