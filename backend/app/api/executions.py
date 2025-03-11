@@ -99,7 +99,7 @@ async def get_recent_executions(
     print(f"Number of executions found: {len(executions)}")
     result = []
     for execution in executions:
-        try
+        try:
             # Detailed logging for each execution
             print(f"Processing execution: {execution.id}")
             print(f"Workflow ID: {execution.workflow_id}")
