@@ -10,9 +10,51 @@ from app.db.models import WorkflowExecution, Workflow, User
 from app.core.security import get_current_active_user
 from app.engine.template_engine import template_engine
 
-router = APIRouter()
+from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
-@router.post("/workflow-executions", response_model=Dict[str, Any])
+router = APIRouter(prefix="/workflow-executions", tags=["executions"])
+
+# Pydantic models for API
+class ExecutionCreate(BaseModel):
+    workflow_id: UUID
+    input_data: Optional[Dict[str, Any]] = None
+
+class ExecutionUpdate(BaseModel):
+    status: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class ExecutionLogCreate(BaseModel):
+    level: str
+    agent: Optional[str] = None
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+class ExecutionLogResponse(BaseModel):
+    id: UUID
+    execution_id: UUID
+    timestamp: datetime
+    level: str
+    agent: Optional[str] = None
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(from_attributes=True)
+    
+class ExecutionResponse(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    status: str
+    input_data: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    logs: Optional[List[ExecutionLogResponse]] = None
+
+    model_config = ConfigDict(from_attributes=True)
+    
+@router.post("/", response_model=Dict[str, Any])
 async def create_workflow_execution(
     execution_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
@@ -57,7 +99,7 @@ async def create_workflow_execution(
         "started_at": execution.created_at.isoformat()
     }
 
-@router.get("/workflow-executions/{execution_id}", response_model=Dict[str, Any])
+@router.get("/{execution_id}", response_model=Dict[str, Any])
 async def get_workflow_execution(
     execution_id: UUID,
     db: Session = Depends(get_db),
@@ -86,48 +128,31 @@ async def get_workflow_execution(
     
     return result
 
-@router.get("/workflow-executions/recent", response_model=List[Dict[str, Any]])
+@router.get("/recent", response_model=List[ExecutionResponse])
 async def get_recent_executions(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    print(f"Current user: {current_user.username}")
     """Get recent workflow executions"""
-    executions = db.query(WorkflowExecution).order_by(WorkflowExecution.created_at.desc()).limit(limit).all()
+    # Join with workflow to filter by user
+    executions = (
+        db.query(WorkflowExecution)
+        .join(Workflow, WorkflowExecution.workflow_id == Workflow.id)
+        .filter(Workflow.created_by_id == current_user.id)
+        .order_by(WorkflowExecution.started_at.desc())
+        .limit(limit)
+        .all()
+    )    
 
-    print(f"Number of executions found: {len(executions)}")
-    result = []
+    # Add workflow names for frontend convenience
     for execution in executions:
-        try:
-            # Detailed logging for each execution
-            print(f"Processing execution: {execution.id}")
-            print(f"Workflow ID: {execution.workflow_id}")
-            print(f"Status: {execution.status}")
-            print(f"Created At: {execution.created_at}")
-            print(f"Completed At: {execution.completed_at}")
-            workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
-            
-            execution_data = {
-                "id": str(execution.id),
-                "workflow_id": str(execution.workflow_id),
-                "status": execution.status or "unknown",
-                "started_at": execution.created_at.isoformat() if execution.created_at else None,
-                "workflow_name": workflow.name if workflow else "Unknown"
-            }
-            
-            if execution.completed_at:
-                execution_data["completed_at"] = execution.completed_at.isoformat()
-            
-            result.append(execution_data)
-        except Exception as exec_error:
-            # Log individual execution processing errors
-            print(f"Error processing execution {execution.id}: {str(exec_error)}")
-            print(traceback.format_exc())
-            # Optionally, you can choose to skip this execution or add a minimal error record        
-    print(f"Prepared result with {len(result)} executions")
-    return result
-
+        workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+        if workflow:
+            execution.workflow_name = workflow.name
+    
+    return executions
+    
 async def run_workflow_execution(execution_id: str, workflow_id: str, input_data: Dict[str, Any], db: Session):
     """Run a workflow execution asynchronously"""
     try:
