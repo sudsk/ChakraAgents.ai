@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, templates, workflows, executions
+from app.api import auth, templates, workflows, executions, settings as settings_router
 from app.core.config import settings
 from app.db.session import engine
 from app.db.models import Base
@@ -49,6 +49,7 @@ app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(templates.router, prefix=settings.API_V1_STR)
 app.include_router(workflows.router, prefix=settings.API_V1_STR)
 app.include_router(executions.router, prefix=settings.API_V1_STR)
+app.include_router(settings_router.router, prefix=settings.API_V1_STR)
 
 # Add exception handlers
 @app.exception_handler(Exception)
