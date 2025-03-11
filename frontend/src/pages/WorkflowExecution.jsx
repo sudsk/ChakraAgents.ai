@@ -94,7 +94,7 @@ const WorkflowExecution = () => {
       try {
         // Fetch execution
         const executionData = await apiClient.get(`/api/workflow-executions/${executionId}`);
-        setExecution(executionDa
+        setExecution(executionData);
         
         // Fetch workflow
         const workflowData = await apiClient.get(`/api/workflows/${id}`);
