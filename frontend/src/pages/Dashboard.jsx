@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+import apiClient from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
@@ -82,31 +83,27 @@ const AgentDashboard = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Fetch templates
-    fetch('/api/templates')
-      .then(response => response.json())
-      .then(data => {
-        setTemplates(data);
-        setMetrics(prev => ({...prev, totalTemplates: data.length}));
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Error fetching templates:', error);
-        setLoading(false);
-      });
-      
-    // Fetch recent executions
-    fetch('/api/workflow-executions/recent')
-      .then(response => response.json())
-      .then(data => {
-        setWorkflowExecutions(data);
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch templates
+        const templateData = await apiClient.get('/api/templates');
+        setTemplates(templateData);
+        setMetrics(prev => ({...prev, totalTemplates: templateData.length}));
+
+        // Fetch recent executions
+        const executionData = await apiClient.get('/api/workflow-executions/recent');
+        setWorkflowExecutions(executionData);
         
         // Calculate success rate
-        const succeeded = data.filter(exec => exec.status === 'completed').length;
-        const successRate = data.length > 0 ? (succeeded / data.length * 100).toFixed(1) : 0;
+        const succeeded = executionData.filter(exec => exec.status === 'completed').length;
+        const successRate = executionData.length > 0 
+          ? (succeeded / executionData.length * 100).toFixed(1) 
+          : 0;
         
         // Calculate average response time
-        const completedExecutions = data.filter(exec => exec.completed_at && exec.started_at);
+        const completedExecutions = executionData.filter(exec => exec.completed_at && exec.started_at);
         let totalResponseTime = 0;
         
         completedExecutions.forEach(exec => {
@@ -114,8 +111,8 @@ const AgentDashboard = () => {
           const end = new Date(exec.completed_at);
           const responseTime = (end - start) / 1000; // in seconds
           totalResponseTime += responseTime;
-        });
-        
+        });        
+
         const avgResponseTime = completedExecutions.length > 0 
           ? (totalResponseTime / completedExecutions.length).toFixed(1) 
           : 0;
@@ -124,14 +121,24 @@ const AgentDashboard = () => {
           ...prev, 
           successRate,
           avgResponseTime,
-          activeWorkflows: data.filter(exec => exec.status === 'running').length
-        }));
-      })
-      .catch(error => {
-        console.error('Error fetching executions:', error);
-      });
-  }, []);
-  
+          activeWorkflows: executionData.filter(exec => exec.status === 'running').length
+        }));        
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to load dashboard data',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);        
+
   // Sample data for metrics
   const executionData = [
     { name: 'Mon', executions: 12, success: 11, failed: 1 },
