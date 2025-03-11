@@ -139,7 +139,7 @@ const AgentDashboard = () => {
       }
     };
     fetchDashboardData();
-  }, []);        
+  }, [toast]);        
 
   // Sample data for metrics
   const executionData = [
