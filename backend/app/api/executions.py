@@ -92,26 +92,40 @@ async def get_recent_executions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    print(f"Current user: {current_user.username}")
     """Get recent workflow executions"""
     executions = db.query(WorkflowExecution).order_by(WorkflowExecution.created_at.desc()).limit(limit).all()
-    
+
+    print(f"Number of executions found: {len(executions)}")
     result = []
     for execution in executions:
-        workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
-        
-        execution_data = {
-            "id": str(execution.id),
-            "workflow_id": str(execution.workflow_id),
-            "status": execution.status or "unknown",
-            "started_at": execution.created_at.isoformat() if execution.created_at else None,
-            "workflow_name": workflow.name if workflow else "Unknown"
-        }
-        
-        if execution.completed_at:
-            execution_data["completed_at"] = execution.completed_at.isoformat()
-        
-        result.append(execution_data)
-    
+        try
+            # Detailed logging for each execution
+            print(f"Processing execution: {execution.id}")
+            print(f"Workflow ID: {execution.workflow_id}")
+            print(f"Status: {execution.status}")
+            print(f"Created At: {execution.created_at}")
+            print(f"Completed At: {execution.completed_at}")
+            workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+            
+            execution_data = {
+                "id": str(execution.id),
+                "workflow_id": str(execution.workflow_id),
+                "status": execution.status or "unknown",
+                "started_at": execution.created_at.isoformat() if execution.created_at else None,
+                "workflow_name": workflow.name if workflow else "Unknown"
+            }
+            
+            if execution.completed_at:
+                execution_data["completed_at"] = execution.completed_at.isoformat()
+            
+            result.append(execution_data)
+        except Exception as exec_error:
+            # Log individual execution processing errors
+            print(f"Error processing execution {execution.id}: {str(exec_error)}")
+            print(traceback.format_exc())
+            # Optionally, you can choose to skip this execution or add a minimal error record        
+    print(f"Prepared result with {len(result)} executions")
     return result
 
 async def run_workflow_execution(execution_id: str, workflow_id: str, input_data: Dict[str, Any], db: Session):
