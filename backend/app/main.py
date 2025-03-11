@@ -49,7 +49,7 @@ app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(templates.router, prefix=settings.API_V1_STR)
 app.include_router(workflows.router, prefix=settings.API_V1_STR)
 app.include_router(executions.router, prefix=settings.API_V1_STR)
-app.include_router(settings_router.router, prefix=settings.API_V1_STR)
+app.include_router(settings_router.router, prefix=f"{settings.API_V1_STR}/settings",tags=["settings"])
 
 # Add exception handlers
 @app.exception_handler(Exception)
