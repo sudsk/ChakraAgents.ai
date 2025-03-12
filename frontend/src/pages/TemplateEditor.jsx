@@ -1,5 +1,7 @@
 /* eslint-disable no-unused-vars */
 import apiClient from '../services/api';
+import RAGConfigurationPanel from '../components/RAGConfigurationPanel';  
+import HybridConfigurationPanel from '../components/HybridConfigurationPanel';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -38,7 +40,7 @@ import {
   Spinner,
   Icon
 } from '@chakra-ui/react';
-import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, FiTool, FiSettings } from 'react-icons/fi';
+import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, FiTool, FiSettings, FiUsers } from 'react-icons/fi';
 
 // Define component for agent configuration form
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
@@ -271,13 +273,103 @@ const TemplateEditor = () => {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Available model providers and models
-  const providers = [
-    { value: 'vertex_ai', label: 'Vertex AI' },
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' },
-    { value: 'custom', label: 'Custom Provider' }
-  ];
+  // Add to the useState calls:
+  const [ragConfig, setRagConfig] = useState({
+    enabled: false,
+    retrievalSettings: {
+      numResults: 5,
+      similarityThreshold: 0.7,
+      includeMetadata: true,
+      maxTokensPerDocument: 1000
+    },
+    vectorStoreSettings: {
+      storeName: 'default',
+      embeddingModel: 'vertex_ai',
+      dimensions: 768
+    },
+    promptSettings: {
+      systemMessage: "You are a helpful assistant with access to a knowledge base. Answer questions based on the retrieved information when available.",
+      retrievalPrompt: "Retrieve information related to this query: {query}"
+    }
+  });
+  
+  // Add this function to handle RAG configuration changes:
+  const handleRagConfigChange = (newConfig) => {
+    setRagConfig(newConfig);
+    
+    // Update the template with RAG configuration
+    setTemplate(prev => ({
+      ...prev,
+      config: {
+        ...prev.config,
+        rag_enabled: newConfig.enabled,
+        rag_config: {
+          retrievalSettings: newConfig.retrievalSettings,
+          vectorStoreSettings: newConfig.vectorStoreSettings,
+          promptSettings: newConfig.promptSettings
+        }
+      }
+    }));
+    
+    // If RAG is enabled, add the retrieve_information tool to all agents
+    if (newConfig.enabled) {
+      if (template.workflow_type === 'rag') {
+        // For dedicated RAG workflows, just update the config
+        return;
+      }
+      
+      if (template.workflow_type === 'supervisor') {
+        // Add RAG tool to workers
+        const updatedWorkers = template.config.workers.map(worker => {
+          const workerTools = worker.tools || [];
+          if (!workerTools.includes('retrieve_information')) {
+            return {
+              ...worker,
+              tools: [...workerTools, 'retrieve_information']
+            };
+          }
+          return worker;
+        });
+        
+        setTemplate(prev => ({
+          ...prev,
+          config: {
+            ...prev.config,
+            workers: updatedWorkers
+          }
+        }));
+      } else if (template.workflow_type === 'swarm') {
+        // Add RAG tool to agents
+        const updatedAgents = template.config.agents.map(agent => {
+          const agentTools = agent.tools || [];
+          if (!agentTools.includes('retrieve_information')) {
+            return {
+              ...agent,
+              tools: [...agentTools, 'retrieve_information']
+            };
+          }
+          return agent;
+        });
+        
+        setTemplate(prev => ({
+          ...prev,
+          config: {
+            ...prev.config,
+            agents: updatedAgents
+          }
+        }));
+      }
+    }
+  };
+
+    
+    // Available model providers and models
+    const providers = [
+      { value: 'vertex_ai', label: 'Vertex AI' },
+      { value: 'openai', label: 'OpenAI' },
+      { value: 'anthropic', label: 'Anthropic' },
+      { value: 'custom', label: 'Custom Provider' }
+    ];
 
   const modelOptions = [
     { provider: 'vertex_ai', value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
@@ -380,7 +472,7 @@ const TemplateEditor = () => {
         tools: template.config.tools || [],
         workflow_config: template.config.workflow_config || { max_iterations: 3 }
       };
-    } else { // swarm
+    } else if (type === "swarm") {
       newConfig = {
         agents: template.config.agents || [],
         tools: template.config.tools || [],
@@ -389,6 +481,156 @@ const TemplateEditor = () => {
           max_iterations: 3 
         }
       };
+    } else if (type === "rag") {
+      // Setup a RAG-specific configuration
+      newConfig = {
+        model_provider: 'vertex_ai',
+        model_name: 'gemini-1.5-pro',
+        system_message: 'You are a helpful assistant with access to a knowledge base. Answer questions based on the retrieved information when available. If the retrieved information doesn\'t contain the answer, state that clearly before providing your best response.',
+        temperature: 0.3,
+        num_results: 5,
+        tools: [{
+          name: 'retrieve_information',
+          description: 'Retrieve relevant information from the knowledge base for the given query',
+          function_name: 'retrieve_information',
+          parameters: {
+            query: {
+              type: 'string',
+              description: 'The search query'
+            },
+            num_results: {
+              type: 'integer',
+              description: 'Number of results to retrieve (default: 5)'
+            }
+          }
+        }],
+        workflow_config: {
+          max_iterations: 1,
+          checkpoint_dir: './checkpoints/rag_assistant'
+        },
+        rag_enabled: true,
+        rag_config: {
+          retrievalSettings: ragConfig.retrievalSettings,
+          vectorStoreSettings: ragConfig.vectorStoreSettings,
+          promptSettings: ragConfig.promptSettings
+        }
+      };
+    
+      // Update the RAG configuration state
+      setRagConfig(prev => ({
+        ...prev,
+        enabled: true
+      }));
+    } else if (type === "hybrid") {
+      // Setup a hybrid configuration
+      newConfig = {
+        teams: [
+          {
+            id: `team_${Date.now().toString(36)}`,
+            name: 'Research Team',
+            description: 'A team specialized in information retrieval and analysis',
+            supervisor: {
+              name: 'research_supervisor',
+              role: 'supervisor',
+              model_provider: 'vertex_ai',
+              model_name: 'gemini-1.5-pro',
+              prompt_template: `You are a research supervisor coordinating a team of specialized workers.
+  Your task is to analyze the following query, break it down into subtasks, and coordinate with your workers to solve it.
+  
+  Query: {input}
+  
+  Context from other teams/agents: {context}`,
+              temperature: 0.3,
+              system_message: 'You are a research supervisor agent. Your role is to coordinate your research team effectively and synthesize their outputs into a coherent response.'
+            },
+            workers: [
+              {
+                name: 'retriever',
+                role: 'researcher',
+                model_provider: 'vertex_ai',
+                model_name: 'gemini-1.5-flash',
+                prompt_template: `You are a research worker specialized in information retrieval.
+  
+  Task from supervisor: {supervisor_response}
+  Original query: {input}
+  Previous worker outputs: {worker_outputs}
+  Retrieved information: {retrieved_information}
+  
+  Your job is to find and present key facts and information relevant to the query.`,
+                temperature: 0.3,
+                system_message: 'You are an information retriever specialized in finding relevant facts and data.',
+                tools: ['retrieve_information']
+              },
+              {
+                name: 'analyst',
+                role: 'analyst',
+                model_provider: 'vertex_ai',
+                model_name: 'gemini-1.5-pro',
+                prompt_template: `You are a research worker specialized in analysis.
+  
+  Task from supervisor: {supervisor_response}
+  Original query: {input}
+  Previous worker outputs: {worker_outputs}
+  
+  Your job is to analyze the information provided by other workers and identify key insights, patterns, and implications.`,
+                temperature: 0.4,
+                system_message: 'You are an analyst specialized in interpreting information and identifying insights.'
+              }
+            ]
+          }
+        ],
+        peer_agents: [
+          {
+            name: 'critic',
+            role: 'critic',
+            model_provider: 'vertex_ai',
+            model_name: 'gemini-1.5-pro',
+            prompt_template: `You are a critical thinker working independently.
+  
+  Query: {input}
+  Context from other agents/teams: {context}
+  
+  Your job is to evaluate the work done by other agents and teams, identifying potential weaknesses, oversights, or biases in their approach.`,
+            temperature: 0.3,
+            system_message: 'You are a critic responsible for quality control and identifying potential issues in the work done by others.'
+          }
+        ],
+        coordination: {
+          type: 'sequential',
+          final_agent: null
+        },
+        tools: [{
+          name: 'retrieve_information',
+          description: 'Retrieve relevant information from the knowledge base for the given query',
+          function_name: 'retrieve_information',
+          parameters: {
+            query: {
+              type: 'string',
+              description: 'The search query'
+            },
+            num_results: {
+              type: 'integer',
+              description: 'Number of results to retrieve (default: 5)'
+            }
+          }
+        }],
+        workflow_config: {
+          max_iterations: 2,
+          checkpoint_dir: './checkpoints/hybrid'
+        },
+        rag_enabled: true,
+        rag_config: {
+          retrievalSettings: ragConfig.retrievalSettings,
+          vectorStoreSettings: ragConfig.vectorStoreSettings,
+          promptSettings: ragConfig.promptSettings
+        }
+      };
+      
+      // Enable RAG for hybrid workflows by default
+      setRagConfig(prev => ({
+        ...prev,
+        enabled: true
+      }));
     }
     
     setTemplate({
@@ -701,11 +943,17 @@ const TemplateEditor = () => {
                 >
                   <option value="supervisor">Supervisor-Worker</option>
                   <option value="swarm">Agent Swarm</option>
+                  <option value="rag">RAG (Retrieval-Augmented Generation)</option>
+                  <option value="hybrid">Hybrid (Advanced)</option>
                 </Select>
                 <FormHelperText>
                   {template.workflow_type === 'supervisor' 
                     ? 'Supervisor agent coordinates worker agents'
-                    : 'Multiple agents collaborate as peers'}
+                    : template.workflow_type === 'swarm'
+                      ? 'Multiple agents collaborate as peers'
+                      : template.workflow_type === 'rag'
+                        ? 'Knowledge-base enhanced generation'
+                        : 'Advanced multi-team architecture with flexible coordination'}
                 </FormHelperText>
               </FormControl>
             </CardBody>
@@ -717,7 +965,11 @@ const TemplateEditor = () => {
               <Tab><Icon as={FiCpu} mr={2} /> Agents</Tab>
               <Tab><Icon as={FiTool} mr={2} /> Tools</Tab>
               <Tab><Icon as={FiSettings} mr={2} /> Settings</Tab>
-            </TabList>
+              <Tab><Icon as={FiDatabase} mr={2} /> RAG</Tab>
+              {template.workflow_type === 'hybrid' && (
+                <Tab><Icon as={FiUsers} mr={2} /> Hybrid</Tab>
+              )}
+            </TabList>            
             
             <TabPanels>
               {/* Agents Tab */}
@@ -911,6 +1163,20 @@ const TemplateEditor = () => {
                   </CardBody>
                 </Card>
               </TabPanel>
+            {/* Hybrid Configuration Tab */}
+            {template.workflow_type === 'hybrid' && (
+              <TabPanel p={0} pt={4}>
+                <HybridConfigurationPanel
+                  config={template.config}
+                  onChange={(newConfig) => {
+                    handleFormChange('config', newConfig);
+                  }}
+                  isEditing={true}
+                  agents={modelOptions}
+                  tools={template.config.tools || []}
+                />
+              </TabPanel>
+            )}              
             </TabPanels>
           </Tabs>
         </Box>
