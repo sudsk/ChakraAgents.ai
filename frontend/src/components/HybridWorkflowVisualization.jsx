@@ -25,7 +25,8 @@ import {
   Tab,
   TabPanel,
   useColorModeValue,
-  Icon
+  Icon,
+  SimpleGrid
 } from '@chakra-ui/react';
 import { 
   FiUsers, 
