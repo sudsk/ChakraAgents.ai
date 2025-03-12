@@ -5,11 +5,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
+from sqlalchemy.future import select
 
 from app.core.security import get_current_active_user
 from app.db.models import Workflow, WorkflowExecution, ExecutionLog, User, Template
 from app.db.session import get_db
-import app.engine.template_engine as engine  # Import the template engine module
+import app.engine.template_engine as TemplateEngine  # Import the template engine module
 from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/workflow-executions", tags=["executions"])
@@ -51,6 +52,7 @@ class ExecutionResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     logs: Optional[List[ExecutionLogResponse]] = None
+    workflow_name: Optional[str] = None  # Added for frontend convenience
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,7 +64,7 @@ async def execute_workflow_background(
 ):
     """
     Execute a workflow in the background.
-    This function would use the template engine to run the workflow.
+    This function uses the template engine to run the workflow.
     """
     try:
         # Get workflow and template
@@ -79,26 +81,127 @@ async def execute_workflow_background(
         execution.status = "running"
         db.commit()
         
+        # Add log entry for execution start
+        start_log = ExecutionLog(
+            execution_id=execution_id,
+            level="info",
+            agent="system",
+            message="Workflow execution started",
+        )
+        db.add(start_log)
+        db.commit()
+        
         # Initialize the template engine and run the workflow
-        engine_instance = engine.TemplateEngine()
-        result = await engine_instance.execute_workflow(template, workflow, input_data)
+        engine = TemplateEngine()
+        
+        # Log milestone
+        milestone_log = ExecutionLog(
+            execution_id=execution_id,
+            level="info",
+            agent="system",
+            message="Initializing workflow execution",
+            data={"workflow_type": template.workflow_type}
+        )
+        db.add(milestone_log)
+        db.commit()
+        
+        # Execute the workflow
+        result = await engine.execute_workflow(template, workflow, input_data)
         
         # Update execution with result
         execution.completed_at = datetime.utcnow()
-        execution.status = "completed" if result["success"] else "failed"
+        execution.status = "completed" if result.get("success", False) else "failed"
         execution.result = result
-        if not result["success"]:
-            execution.error = "Workflow execution failed"
         
-        # Add log entries
-        log_entry = ExecutionLog(
+        if not result.get("success", False):
+            execution.error = result.get("error", "Workflow execution failed")
+            
+            # Add error log
+            error_log = ExecutionLog(
+                execution_id=execution_id,
+                level="error",
+                agent="system",
+                message=f"Workflow execution failed: {result.get('error', 'Unknown error')}",
+            )
+            db.add(error_log)
+        
+        # Add completion log
+        complete_log = ExecutionLog(
             execution_id=execution_id,
             level="info",
             agent="system",
             message="Workflow execution completed",
-            data={"success": result["success"]}
+            data={
+                "success": result.get("success", False),
+                "execution_time": result.get("execution_time", 0)
+            }
         )
-        db.add(log_entry)
+        db.add(complete_log)
+        
+        # Add agent logs if available
+        if template.workflow_type == "supervisor":
+            # Add supervisor logs
+            supervisor_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent="supervisor",
+                message="Supervisor response",
+                data={"content": result.get("messages", [{}])[-1].get("content", "") if result.get("messages") else ""}
+            )
+            db.add(supervisor_log)
+            
+            # Add worker logs
+            for worker_name, worker_output in result.get("outputs", {}).items():
+                worker_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=worker_name,
+                    message=f"Worker response: {worker_name}",
+                    data={"content": worker_output}
+                )
+                db.add(worker_log)
+        else:  # swarm
+            # Add agent logs
+            for agent_name, agent_output in result.get("outputs", {}).items():
+                agent_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=agent_name,
+                    message=f"Agent response: {agent_name}",
+                    data={"content": agent_output}
+                )
+                db.add(agent_log)
+                
+            # Add final output log
+            final_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent="system",
+                message="Final output",
+                data={"content": result.get("final_output", "")}
+            )
+            db.add(final_log)
+        
+        # Save a checkpoint of the final state if configured
+        checkpoint_dir = template.config.get("workflow_config", {}).get("checkpoint_dir")
+        if checkpoint_dir:
+            try:
+                checkpoint_path = await engine.save_execution_checkpoint(
+                    execution_id=execution_id,
+                    state=result,
+                    checkpoint_dir=checkpoint_dir
+                )
+                execution.checkpoint_path = checkpoint_path
+            except Exception as checkpoint_error:
+                # Log the error but don't fail the execution
+                error_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="warning",
+                    agent="system",
+                    message=f"Failed to save checkpoint: {str(checkpoint_error)}",
+                )
+                db.add(error_log)
+        
         db.commit()
         
     except Exception as e:
@@ -172,7 +275,8 @@ async def create_execution(
     execution = WorkflowExecution(
         workflow_id=execution_in.workflow_id,
         status="pending",
-        input_data=execution_in.input_data,
+        input_data=execution_in.input_data or {"query": ""},
+        started_at=datetime.utcnow()
     )
     db.add(execution)
     db.commit()
@@ -193,9 +297,12 @@ async def create_execution(
         execute_workflow_background,
         workflow_id=workflow.id,
         execution_id=execution.id,
-        input_data=execution_in.input_data or {},
+        input_data=execution_in.input_data or {"query": ""},
         db=db,
     )
+    
+    # Add workflow name for frontend convenience
+    execution.workflow_name = workflow.name
     
     return execution
 
@@ -270,3 +377,77 @@ def add_execution_log(
     db.refresh(log_entry)
     
     return log_entry
+
+@router.delete("/{execution_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_execution(
+    execution_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Cancel a running workflow execution.
+    """
+    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Check if user has access to this execution
+    workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+    if not workflow or (workflow.created_by_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    
+    # Can only cancel running or pending executions
+    if execution.status not in ["running", "pending"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel execution with status: {execution.status}",
+        )
+    
+    # Mark as canceled
+    execution.status = "canceled"
+    execution.completed_at = datetime.utcnow()
+    
+    # Add log entry
+    log_entry = ExecutionLog(
+        execution_id=execution_id,
+        level="warning",
+        agent="system",
+        message="Execution canceled by user",
+    )
+    db.add(log_entry)
+    db.commit()
+    
+    return None
+
+@router.get("/{execution_id}/logs", response_model=List[ExecutionLogResponse])
+def get_execution_logs(
+    execution_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get logs for a specific workflow execution.
+    """
+    execution = db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Check if user has access to this execution
+    workflow = db.query(Workflow).filter(Workflow.id == execution.workflow_id).first()
+    if not workflow or (workflow.created_by_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+    
+    logs = db.query(ExecutionLog).filter(ExecutionLog.execution_id == execution_id).order_by(ExecutionLog.timestamp).all()
+    return logs
