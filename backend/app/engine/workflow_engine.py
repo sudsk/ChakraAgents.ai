@@ -1,4 +1,4 @@
-# backend/app/engine/template_engine.py
+# backend/app/engine/workflow_engine.py
 import logging
 import json
 import asyncio
@@ -14,8 +14,8 @@ from app.db.models import Template, Workflow, WorkflowExecution, ExecutionLog
 
 logger = logging.getLogger(__name__)
 
-class TemplateEngine:
-    """Engine for processing templates and executing workflows"""
+class WorkflowEngine:
+    """Engine for executing workflows based on templates"""
     
     def __init__(self):
         self.llm_provider = llm_provider_manager
