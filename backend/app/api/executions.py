@@ -91,15 +91,15 @@ async def execute_workflow_background(
         db.add(start_log)
         db.commit()
         
-        # Initialize the workflow engine and run the workflow
-        engine = WorkflowEngine()
+        # Get the appropriate engine for this workflow type
+        engine = get_workflow_engine(template.workflow_type)
         
         # Log milestone
         milestone_log = ExecutionLog(
             execution_id=execution_id,
             level="info",
             agent="system",
-            message="Initializing workflow execution",
+            message=f"Initializing {template.workflow_type} workflow execution",
             data={"workflow_type": template.workflow_type}
         )
         db.add(milestone_log)
@@ -138,8 +138,11 @@ async def execute_workflow_background(
         )
         db.add(complete_log)
         
-        # Add agent logs if available
-        if template.workflow_type == "supervisor":
+        # Add appropriate logs based on workflow type
+        if template.workflow_type == "hybrid":
+            # Add logs for hybrid workflow
+            _add_hybrid_execution_logs(db, execution_id, result)
+        elif template.workflow_type == "supervisor":
             # Add supervisor logs
             supervisor_log = ExecutionLog(
                 execution_id=execution_id,
@@ -160,7 +163,7 @@ async def execute_workflow_background(
                     data={"content": worker_output}
                 )
                 db.add(worker_log)
-        else:  # swarm
+        else:  # swarm or rag
             # Add agent logs
             for agent_name, agent_output in result.get("outputs", {}).items():
                 agent_log = ExecutionLog(
@@ -221,6 +224,85 @@ async def execute_workflow_background(
             db.add(log_entry)
             db.commit()
 
+def _add_hybrid_execution_logs(db: Session, execution_id: UUID, result: Dict[str, Any]):
+    """Add hybrid workflow execution logs"""
+    # Log team outputs
+    outputs = result.get("outputs", {})
+    for output_key, output_value in outputs.items():
+        if output_key.startswith("team:"):
+            team_id = output_key.split(":")[1]
+            
+            # Log supervisor output
+            supervisor_output = output_value.get("supervisor_output", "")
+            if supervisor_output:
+                supervisor_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=f"supervisor_{team_id}",
+                    message=f"Team {team_id} Supervisor",
+                    data={"content": supervisor_output}
+                )
+                db.add(supervisor_log)
+            
+            # Log worker outputs
+            worker_outputs = output_value.get("worker_outputs", {})
+            for worker_id, worker_output in worker_outputs.items():
+                worker_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=worker_id,
+                    message=f"Team {team_id} Worker",
+                    data={"content": worker_output}
+                )
+                db.add(worker_log)
+            
+            # Log team final output
+            team_final = output_value.get("final_output", "")
+            if team_final:
+                team_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=f"team_{team_id}",
+                    message=f"Team {team_id} Final Output",
+                    data={"content": team_final}
+                )
+                db.add(team_log)
+        
+        elif output_key.startswith("agent:"):
+            agent_id = output_key.split(":")[1]
+            agent_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent=agent_id,
+                message=f"Peer Agent Output",
+                data={"content": output_value}
+            )
+            db.add(agent_log)
+    
+    # Log execution graph
+    execution_graph = result.get("execution_graph", {})
+    if execution_graph:
+        graph_log = ExecutionLog(
+            execution_id=execution_id,
+            level="info",
+            agent="system",
+            message="Execution Graph",
+            data={"graph": execution_graph}
+        )
+        db.add(graph_log)
+    
+    # Log final output
+    final_output = result.get("final_output", "")
+    if final_output:
+        final_log = ExecutionLog(
+            execution_id=execution_id,
+            level="info",
+            agent="system",
+            message="Final Output",
+            data={"content": final_output}
+        )
+        db.add(final_log)
+        
 @router.get("/recent", response_model=List[ExecutionResponse])
 def get_recent_executions(
     limit: int = 10,
