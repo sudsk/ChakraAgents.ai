@@ -1,6 +1,7 @@
 # backend/app/services/document_service.py
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader, PDFLoader, CSVLoader
+from langchain_community.document_loaders import TextLoader, CSVLoader
+from langchain_community.document_loaders.pdf import PyPDFLoader
 
 class DocumentProcessor:
     def __init__(self):
@@ -12,7 +13,7 @@ class DocumentProcessor:
     def load_and_split(self, file_path):
         """Load document and split into chunks"""
         if file_path.endswith('.pdf'):
-            loader = PDFLoader(file_path)
+            loader = PyPDFLoader(file_path)
         elif file_path.endswith('.csv'):
             loader = CSVLoader(file_path)
         else:
