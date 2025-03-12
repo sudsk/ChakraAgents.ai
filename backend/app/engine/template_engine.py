@@ -43,7 +43,7 @@ class TemplateEngine:
             if workflow_type == "supervisor":
                 result = await self._execute_supervisor_workflow(merged_config, input_data)
             else:  # swarm
-                result = await self._execute_swarm_workflow(merged_config, input_data)flow(template, workflow, input_data)
+                result = await self._execute_swarm_workflow(merged_config, input_data)
             
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"Workflow execution completed in {execution_time:.2f} seconds")
