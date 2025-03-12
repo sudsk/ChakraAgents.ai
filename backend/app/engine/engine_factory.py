@@ -27,7 +27,7 @@ class WorkflowEngineFactory:
         
         return self._engines[workflow_type]
 
-# Convenience function to get an engine
+# Convenience function to get an engine - export this at the module level
 def get_workflow_engine(workflow_type: str) -> WorkflowEngine:
     """Get the appropriate workflow engine for the given workflow type"""
     return WorkflowEngineFactory.get_instance().get_engine(workflow_type)
