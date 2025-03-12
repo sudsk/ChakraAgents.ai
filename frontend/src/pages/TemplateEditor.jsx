@@ -1163,6 +1163,128 @@ const TemplateEditor = () => {
                   </CardBody>
                 </Card>
               </TabPanel>
+              {/* RAG Configuration Tab */}
+              <TabPanel p={0} pt={4}>
+                <RAGConfigurationPanel 
+                  config={{
+                    enabled: template.config.rag_enabled || false,
+                    retrievalSettings: template.config.rag_config?.retrievalSettings || ragConfig.retrievalSettings,
+                    vectorStoreSettings: template.config.rag_config?.vectorStoreSettings || ragConfig.vectorStoreSettings,
+                    promptSettings: template.config.rag_config?.promptSettings || ragConfig.promptSettings
+                  }}
+                  onChange={handleRagConfigChange}
+                  isEditing={true}
+                />
+                
+                {template.workflow_type === 'rag' && (
+                  <Box mt={6}>
+                    <Card>
+                      <CardBody>
+                        <Heading size="sm" mb={4}>RAG-Specific Model Settings</Heading>
+                        
+                        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+                          <FormControl isRequired>
+                            <FormLabel>Model Provider</FormLabel>
+                            <Select
+                              value={template.config.model_provider || 'vertex_ai'}
+                              onChange={(e) => handleFormChange('config', {
+                                ...template.config,
+                                model_provider: e.target.value
+                              })}
+                            >
+                              {providers.map(provider => (
+                                <option key={provider.value} value={provider.value}>{provider.label}</option>
+                              ))}
+                            </Select>
+                          </FormControl>
+          
+                          <FormControl isRequired>
+                            <FormLabel>Model Name</FormLabel>
+                            <Select
+                              value={template.config.model_name || 'gemini-1.5-pro'}
+                              onChange={(e) => handleFormChange('config', {
+                                ...template.config,
+                                model_name: e.target.value
+                              })}
+                            >
+                              {modelOptions
+                                .filter(model => model.provider === template.config.model_provider)
+                                .map(model => (
+                                  <option key={model.value} value={model.value}>{model.label}</option>
+                                ))
+                              }
+                            </Select>
+                          </FormControl>
+                        </SimpleGrid>
+                        
+                        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+                          <FormControl>
+                            <FormLabel>Temperature</FormLabel>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="1"
+                              value={template.config.temperature || 0.3}
+                              onChange={(e) => handleFormChange('config', {
+                                ...template.config,
+                                temperature: parseFloat(e.target.value)
+                              })}
+                            />
+                            <FormHelperText>0 = deterministic, 1 = creative</FormHelperText>
+                          </FormControl>
+          
+                          <FormControl>
+                            <FormLabel>Number of Results</FormLabel>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="20"
+                              value={template.config.num_results || 5}
+                              onChange={(e) => handleFormChange('config', {
+                                ...template.config,
+                                num_results: parseInt(e.target.value)
+                              })}
+                            />
+                            <FormHelperText>Documents to retrieve per query</FormHelperText>
+                          </FormControl>
+                        </SimpleGrid>
+                        
+                        <FormControl mb={4}>
+                          <FormLabel>System Message</FormLabel>
+                          <Textarea
+                            value={template.config.system_message || ''}
+                            onChange={(e) => handleFormChange('config', {
+                              ...template.config,
+                              system_message: e.target.value
+                            })}
+                            placeholder="System message for RAG responses"
+                            rows={3}
+                          />
+                        </FormControl>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                )}
+                
+                {(template.config.rag_enabled || template.workflow_type === 'rag') && (
+                  <Box mt={6}>
+                    <RAGTestConsole 
+                      config={{
+                        ragEnabled: template.config.rag_enabled || template.workflow_type === 'rag',
+                        workflowType: template.workflow_type,
+                        retrievalSettings: template.config.rag_config?.retrievalSettings || ragConfig.retrievalSettings,
+                        vectorStoreSettings: template.config.rag_config?.vectorStoreSettings || ragConfig.vectorStoreSettings,
+                        modelProvider: template.config.model_provider || 'vertex_ai',
+                        modelName: template.config.model_name || 'gemini-1.5-pro',
+                        systemMessage: template.config.system_message || template.config.rag_config?.promptSettings?.systemMessage || '',
+                        temperature: template.config.temperature || 0.3,
+                        numResults: template.config.num_results || 5
+                      }}
+                    />
+                  </Box>
+                )}
+              </TabPanel>              
             {/* Hybrid Configuration Tab */}
             {template.workflow_type === 'hybrid' && (
               <TabPanel p={0} pt={4}>
