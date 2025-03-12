@@ -44,10 +44,19 @@ import {
 } from '@chakra-ui/react';
 import { 
   FiUsers, FiPlus, FiTrash2, FiMove, FiLink, FiCpu, FiGrid, FiMessageSquare, 
-  FiLayers, FiX, FiArrowRight, FiEdit, FiSettings, FiEye, FiDownload, FiUpload
+  FiLayers, FiX, FiArrowRight, FiEdit, FiSettings, FiEye, FiDownload, FiUpload, FiCheck
 } from 'react-icons/fi';
 
-const HybridConfigurationPanel = ({ config, onChange, isEditing = true, agents = [], tools = [] }) => {
+const HybridConfigurationPanel = ({ config, onChange, isEditing = true, agents = [], tools = [], providers  }) => {
+  const defaultProviders = [
+      { value: 'vertex_ai', label: 'Vertex AI' },
+      { value: 'openai', label: 'OpenAI' },
+      { value: 'anthropic', label: 'Anthropic' },
+      { value: 'custom', label: 'Custom Provider' }
+  ];  
+  // Use provided providers or fallback to default
+  const modelProviders = providers || defaultProviders; 
+  
   const [hybridConfig, setHybridConfig] = useState({
     teams: config?.teams || [],
     peer_agents: config?.peer_agents || [],
