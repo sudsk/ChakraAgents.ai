@@ -33,7 +33,7 @@ import {
   useDisclosure,
   useToast
 } from '@chakra-ui/react';
-import { FiPlus, FiSearch, FiEdit, FiPlay, FiMoreVertical, FiTrash2, FiCopy, FiDownload, FiCpu, FiGrid } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit, FiPlay, FiMoreVertical, FiTrash2, FiCopy, FiDownload, FiCpu, FiGrid, FiDatabase } from 'react-icons/fi';
 
 const Templates = () => {
   const navigate = useNavigate();
@@ -252,13 +252,27 @@ const Templates = () => {
               <CardBody>
                 <Flex direction="column" height="100%">
                   <Flex justify="space-between" align="flex-start" mb={2}>
-                    <Badge 
-                      colorScheme={template.workflow_type === 'supervisor' ? 'blue' : 'purple'}
-                      mb={2}
-                    >
-                      {template.workflow_type}
-                    </Badge>
-                    
+                    <HStack>
+                      <Badge 
+                        colorScheme={
+                          template.workflow_type === 'supervisor' ? 'blue' : 
+                          template.workflow_type === 'swarm' ? 'purple' : 
+                          template.workflow_type === 'rag' ? 'green' : 'gray'
+                        }
+                        mb={2}
+                      >
+                        {template.workflow_type}
+                      </Badge>
+                      {/* Display RAG badge if enabled */}
+                      {(template.workflow_type === 'rag' || template.config?.rag_enabled) && (
+                        <Badge colorScheme="teal" variant="outline" mb={2}>
+                          <HStack spacing={1}>
+                            <Icon as={FiDatabase} fontSize="xs" />
+                            <Text>RAG</Text>
+                          </HStack>
+                        </Badge>
+                      )}
+                    </HStack>
                     <Menu>
                       <MenuButton
                         as={IconButton}
@@ -306,13 +320,19 @@ const Templates = () => {
                   <Flex justify="space-between" align="center" mt="auto">
                     <HStack>
                       <Icon 
-                        as={template.workflow_type === 'supervisor' ? FiCpu : FiGrid} 
+                        as={
+                          template.workflow_type === 'supervisor' ? FiCpu : 
+                          template.workflow_type === 'rag' ? FiDatabase : 
+                          FiGrid
+                        } 
                         color="gray.500" 
                       />
                       <Text fontSize="sm" color="gray.500">
                         {template.workflow_type === 'supervisor' 
                           ? `${1 + (template.config.workers?.length || 0)} agents`
-                          : `${template.config.agents?.length || 0} agents`
+                          : template.workflow_type === 'swarm'
+                            ? `${template.config.agents?.length || 0} agents`
+                            : 'RAG-enabled'
                         }
                       </Text>
                     </HStack>
