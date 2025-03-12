@@ -11,6 +11,8 @@ from pathlib import Path
 from app.engine.llm_providers import llm_provider_manager
 from app.core.config import settings
 from app.db.models import Template, Workflow, WorkflowExecution, ExecutionLog
+from app.engine.tools.rag_tool import RAGTool
+from app.db.vector_store import VectorStoreManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,63 @@ class WorkflowEngine:
     
     def __init__(self):
         self.llm_provider = llm_provider_manager
+        self.rag_tool = RAGTool(vector_store_manager=VectorStoreManager())
+        self.registered_tools = {
+            "retrieve_information": self.rag_tool.retrieve_information
+        }   
+
+    async def execute_rag_workflow(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a simple RAG workflow without complex agent interactions"""
+        logger.info("Executing dedicated RAG workflow")
+        
+        try:
+            # Get configuration for RAG workflow
+            model_provider = config.get("model_provider", "vertex_ai")
+            model_name = config.get("model_name", "gemini-1.5-pro")
+            system_message = config.get("system_message", "")
+            temperature = config.get("temperature", 0.3)
+            num_results = config.get("num_results", 5)
+            
+            # Retrieve relevant information
+            logger.info(f"Retrieving information for query: {query}")
+            context = await self.execute_tool("retrieve_information", query=query, num_results=num_results)
+            
+            # Create prompt with context
+            prompt = f"""Please answer the following question based on the provided context.
+If the context doesn't contain relevant information, say so and answer based on your general knowledge.
+
+Question: {query}
+
+Context:
+{context}
+"""
+            
+            # Generate response
+            logger.info(f"Generating RAG response using {model_provider}/{model_name}")
+            response = await self.llm_provider.generate_response(
+                provider_name=model_provider,
+                model_name=model_name,
+                prompt=prompt,
+                system_message=system_message,
+                temperature=temperature
+            )
+            
+            return {
+                "success": True,
+                "messages": [
+                    {"role": "user", "content": query},
+                    {"role": "assistant", "content": response.get("content", "")}
+                ],
+                "context": context,
+                "model": f"{model_provider}/{model_name}"
+            }
+            
+        except Exception as e:
+            logger.exception(f"Error executing RAG workflow: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }    
     
     async def execute_workflow(self, template: Template, workflow: Workflow, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a workflow with the given input data using its template"""
@@ -40,7 +99,13 @@ class WorkflowEngine:
             os.makedirs(checkpoint_dir, exist_ok=True)
             
             # Execute based on workflow type
-            if workflow_type == "supervisor":
+            if workflow_type == "rag":
+                # Special workflow type for RAG-only flows without complex agent interactions
+                query = input_data.get("query", "")
+                if not query:
+                    raise ValueError("No query provided in input data for RAG workflow")
+                result = await self.execute_rag_workflow(query, merged_config)
+            elif workflow_type == "supervisor":
                 result = await self._execute_supervisor_workflow(merged_config, input_data)
             else:  # swarm
                 result = await self._execute_swarm_workflow(merged_config, input_data)
@@ -167,7 +232,17 @@ class WorkflowEngine:
                     worker_prompt = worker_prompt.replace("{worker_outputs}", context)
                 else:
                     worker_prompt = worker_prompt.replace("{worker_outputs}", "No worker outputs yet")
-  
+
+                # Check if worker has tools and process them
+                worker_tools = worker.get("tools", [])
+                if worker_tools and "retrieve_information" in worker_tools:
+                    # Worker has RAG capabilities, retrieve relevant information
+                    logger.info(f"Worker {worker_name} is using RAG capabilities")
+                    rag_results = await self.execute_tool("retrieve_information", query=query, num_results=5)
+                    worker_prompt = worker_prompt.replace("{retrieved_information}", rag_results)
+                else:
+                    worker_prompt = worker_prompt.replace("{retrieved_information}", "No information retrieved")
+                    
                 logger.info(f"Executing worker: {worker_name}")
                 
                 # Get worker response
@@ -274,7 +349,17 @@ class WorkflowEngine:
                         agent_prompt = agent_prompt.replace("{previous_outputs}", previous_outputs_text)
                     else:
                         agent_prompt = agent_prompt.replace("{previous_outputs}", "No previous outputs")
-                    
+
+                    # Check if agent has RAG capabilities
+                    agent_tools = agent.get("tools", [])
+                    if agent_tools and "retrieve_information" in agent_tools:
+                        # Agent has RAG capabilities, retrieve relevant information
+                        logger.info(f"Agent {agent_name} is using RAG capabilities")
+                        rag_results = await self.execute_tool("retrieve_information", query=query, num_results=5)
+                        agent_prompt = agent_prompt.replace("{retrieved_information}", rag_results)
+                    else:
+                        agent_prompt = agent_prompt.replace("{retrieved_information}", "No information retrieved")
+                        
                     logger.info(f"Executing agent: {agent_name}")
                     
                     # Get agent response
@@ -379,7 +464,17 @@ class WorkflowEngine:
                 # Replace placeholders in prompt template
                 agent_prompt = agent_prompt_template.replace("{input}", query)
                 agent_prompt = agent_prompt.replace("{hub_output}", hub_output)
-                
+
+                # Check if agent has RAG capabilities
+                agent_tools = agent.get("tools", [])
+                if agent_tools and "retrieve_information" in agent_tools:
+                    # Agent has RAG capabilities, retrieve relevant information
+                    logger.info(f"Spoke agent {agent_name} is using RAG capabilities")
+                    rag_results = await self.execute_tool("retrieve_information", query=query, num_results=5)
+                    agent_prompt = agent_prompt.replace("{retrieved_information}", rag_results)
+                else:
+                    agent_prompt = agent_prompt.replace("{retrieved_information}", "No information retrieved")
+                    
                 logger.info(f"Executing spoke agent: {agent_name}")
                 
                 # Get agent response
@@ -462,4 +557,37 @@ class WorkflowEngine:
         
         logger.info(f"Loaded checkpoint from {filepath}")
         return state
+
+    async def execute_tool(self, tool_name: str, **params) -> Any:
+        """Execute a tool by name with the given parameters"""
+        if tool_name not in self.registered_tools:
+            raise ValueError(f"Tool '{tool_name}' not registered")
+        
+        logger.info(f"Executing tool: {tool_name} with params: {params}")
+        try:
+            result = self.registered_tools[tool_name](**params)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {str(e)}")
+            return f"Error executing tool {tool_name}: {str(e)}"
+    
+    async def process_with_rag(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Process a query using RAG capabilities"""
+        model_provider = config.get("model_provider", "vertex_ai")
+        model_name = config.get("model_name", "gemini-1.5-pro")
+        system_message = config.get("system_message", "")
+        temperature = config.get("temperature", 0.3)
+        num_results = config.get("num_results", 5)
+        
+        return await self.rag_tool.process_with_rag(
+            query=query,
+            llm_provider=self.llm_provider,
+            model_provider=model_provider,
+            model_name=model_name,
+            temperature=temperature,
+            num_results=num_results,
+            system_message=system_message
+        )
         
