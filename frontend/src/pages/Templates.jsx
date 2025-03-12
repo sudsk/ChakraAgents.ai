@@ -92,7 +92,13 @@ const Templates = () => {
       
       // Apply type filter
       if (typeFilter) {
-        filtered = filtered.filter(template => template.workflow_type === typeFilter);
+        if (typeFilter === 'rag_enabled') {
+          filtered = filtered.filter(template => 
+            template.workflow_type === 'rag' || template.config?.rag_enabled === true
+          );
+        } else {
+          filtered = filtered.filter(template => template.workflow_type === typeFilter);
+        }
       }
       
       setFilteredTemplates(filtered);
@@ -233,6 +239,8 @@ const Templates = () => {
         >
           <option value="supervisor">Supervisor</option>
           <option value="swarm">Swarm</option>
+          <option value="rag">RAG</option>
+          <option value="rag_enabled">RAG-Enabled</option>
         </Select>
       </Flex>
       
