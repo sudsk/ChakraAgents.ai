@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 from app.core.security import get_current_active_user
 from app.db.models import Workflow, WorkflowExecution, ExecutionLog, User, Template
 from app.db.session import get_db
-import app.engine.template_engine as TemplateEngine  # Import the template engine module
+from app.engine.template_engine import TemplateEngine
 from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/workflow-executions", tags=["executions"])
