@@ -3,7 +3,7 @@ import logging
 import json
 import asyncio
 import os
-from typing import Dict, List, Any, Optional, Union, Set
+from typing import Dict, List, Any, Optional, Union, Set, Tuple
 from datetime import datetime
 import uuid
 from collections import defaultdict
@@ -86,9 +86,6 @@ class HybridWorkflowEngine(WorkflowEngine):
                 "role": agent.get("role", "peer")
             }
         
-        # Get communication paths
-        communication_paths = coordination_config.get("communication_paths", [])
-        
         # Process execution plan
         # For hybrid workflows, we'll use a flexible "coordination" approach
         coordination_type = coordination_config.get("type", "sequential")
@@ -156,7 +153,22 @@ class HybridWorkflowEngine(WorkflowEngine):
                 processed_agents.add(current_agent_id)
                 
                 # Process the agent or team
-                if current_agent_id in all_agents:
+                is_team = False
+                for team in teams:
+                    if team.get("id") == current_agent_id:
+                        is_team = True
+                        team_result = await self._process_team(
+                            team, query, all_agents, team_outputs, peer_outputs, 
+                            agent_usage, execution_graph
+                        )
+                        team_outputs[current_agent_id] = team_result
+                        
+                        # Check for delegations
+                        delegations = self._extract_delegations(team_result.get("final_output", ""))
+                        next_agents.extend(delegations)
+                        break
+                
+                if not is_team and current_agent_id in all_agents:
                     # It's an individual agent
                     agent = all_agents[current_agent_id]
                     agent_config = {
@@ -172,19 +184,81 @@ class HybridWorkflowEngine(WorkflowEngine):
                     # Check for delegations
                     delegations = self._extract_delegations(peer_result)
                     next_agents.extend(delegations)
-                else:
-                    # Check if it's a team ID
-                    team = next((t for t in teams if t.get("id") == current_agent_id), None)
-                    if team:
-                        team_result = await self._process_team(
-                            team, query, all_agents, team_outputs, peer_outputs, 
-                            agent_usage, execution_graph
-                        )
-                        team_outputs[current_agent_id] = team_result
-                        
-                        # Check for delegations
-                        delegations = self._extract_delegations(team_result.get("final_output", ""))
-                        next_agents.extend(delegations)
+        
+        elif coordination_type == "iterative":
+            # New coordination type: iterative refinement
+            # Teams and agents build on each other's outputs in multiple rounds
+            max_iterations = workflow_config.get("max_iterations", 3)
+            
+            for iteration in range(max_iterations):
+                logger.info(f"Starting iteration {iteration+1}/{max_iterations}")
+                
+                # Process teams
+                team_iteration_results = {}
+                for team in teams:
+                    team_id = team.get("id", f"team_{uuid.uuid4().hex[:8]}")
+                    team_result = await self._process_team(
+                        team, query, all_agents, team_outputs, peer_outputs, agent_usage, execution_graph,
+                        iteration=iteration
+                    )
+                    team_iteration_results[team_id] = team_result
+                
+                # Update team outputs with latest results
+                for team_id, result in team_iteration_results.items():
+                    if team_id not in team_outputs:
+                        team_outputs[team_id] = result
+                    else:
+                        # Merge results, keeping history
+                        team_outputs[team_id] = {
+                            "supervisor_output": result["supervisor_output"],
+                            "worker_outputs": result["worker_outputs"],
+                            "final_output": result["final_output"],
+                            "history": team_outputs[team_id].get("history", []) + [{
+                                "iteration": iteration,
+                                "supervisor_output": team_outputs[team_id].get("supervisor_output"),
+                                "final_output": team_outputs[team_id].get("final_output")
+                            }]
+                        }
+                
+                # Process peer agents
+                peer_iteration_results = {}
+                for agent in peer_agents:
+                    agent_id = agent.get("name", f"peer_{uuid.uuid4().hex[:8]}")
+                    peer_result = await self._process_peer_agent(
+                        agent, query, all_agents, team_outputs, peer_outputs, agent_usage, execution_graph,
+                        iteration=iteration
+                    )
+                    peer_iteration_results[agent_id] = peer_result
+                
+                # Update peer outputs with latest results
+                for agent_id, result in peer_iteration_results.items():
+                    if agent_id not in peer_outputs:
+                        peer_outputs[agent_id] = result
+                    else:
+                        # Store history
+                        if isinstance(peer_outputs[agent_id], dict) and "output" in peer_outputs[agent_id]:
+                            peer_outputs[agent_id]["history"] = peer_outputs[agent_id].get("history", []) + [{
+                                "iteration": iteration,
+                                "output": peer_outputs[agent_id]["output"]
+                            }]
+                            peer_outputs[agent_id]["output"] = result
+                        else:
+                            # Convert to structured format if it wasn't already
+                            peer_outputs[agent_id] = {
+                                "output": result,
+                                "history": [{
+                                    "iteration": iteration,
+                                    "output": peer_outputs[agent_id]
+                                }]
+                            }
+                
+                # Check for convergence or stopping criteria
+                if iteration > 0:
+                    should_stop = self._check_convergence(team_outputs, peer_outputs, iteration)
+                    if should_stop:
+                        logger.info(f"Stopping iterations early due to convergence at iteration {iteration+1}")
+                        break
+        
         else:
             raise ValueError(f"Unsupported coordination type: {coordination_type}")
         
@@ -221,7 +295,14 @@ class HybridWorkflowEngine(WorkflowEngine):
                     final_output = next(iter(team_outputs.values())).get("final_output", "")
                 else:
                     # Fall back to the first peer agent
-                    final_output = next(iter(peer_outputs.values())) if peer_outputs else ""
+                    if peer_outputs:
+                        first_peer_output = next(iter(peer_outputs.values()))
+                        if isinstance(first_peer_output, dict) and "output" in first_peer_output:
+                            final_output = first_peer_output["output"]
+                        else:
+                            final_output = first_peer_output
+                    else:
+                        final_output = "No output generated by any agent."
         else:
             # No final agent specified, create a synthesis
             synthesis_prompt = f"Synthesize all outputs to provide a final answer to the query: '{query}'\n\n"
@@ -237,7 +318,10 @@ class HybridWorkflowEngine(WorkflowEngine):
             if peer_outputs:
                 synthesis_prompt += "Peer agent outputs:\n"
                 for agent_id, output in peer_outputs.items():
-                    synthesis_prompt += f"{agent_id}: {output}\n\n"
+                    if isinstance(output, dict) and "output" in output:
+                        synthesis_prompt += f"{agent_id}: {output['output']}\n\n"
+                    else:
+                        synthesis_prompt += f"{agent_id}: {output}\n\n"
             
             # Get a default model for synthesis
             synthesis_response = await self.llm_provider.generate_response(
@@ -249,27 +333,32 @@ class HybridWorkflowEngine(WorkflowEngine):
             
             final_output = synthesis_response.get("content", "")
         
-        # Collect all outputs
-        all_outputs = {}
+        # Format outputs for result
+        formatted_outputs = {}
         for team_id, output in team_outputs.items():
-            all_outputs[f"team:{team_id}"] = output
+            formatted_outputs[f"team:{team_id}"] = output
         
         for agent_id, output in peer_outputs.items():
-            all_outputs[f"agent:{agent_id}"] = output
+            formatted_outputs[f"agent:{agent_id}"] = output
+        
+        # Convert execution graph to serializable format
+        serializable_graph = {}
+        for source, targets in execution_graph.items():
+            serializable_graph[source] = list(targets)
         
         # Return the combined results
         return {
             "final_output": final_output,
-            "outputs": all_outputs,
+            "outputs": formatted_outputs,
             "agent_usage": agent_usage,
-            "execution_graph": dict(execution_graph)
+            "execution_graph": serializable_graph
         }
     
     async def _process_team(
         self, team: Dict[str, Any], query: str, 
         all_agents: Dict[str, Any], team_outputs: Dict[str, Any], 
         peer_outputs: Dict[str, Any], agent_usage: List[Dict[str, Any]],
-        execution_graph: Dict[str, Set[str]]
+        execution_graph: Dict[str, Set[str]], iteration: int = 0
     ) -> Dict[str, Any]:
         """Process a single team with supervisor and workers"""
         team_id = team.get("id", f"team_{uuid.uuid4().hex[:8]}")
@@ -300,6 +389,16 @@ class HybridWorkflowEngine(WorkflowEngine):
         else:
             supervisor_prompt = supervisor_prompt.replace("{context}", "No context available yet")
         
+        # Add iteration information if this is an iterative workflow
+        if iteration > 0:
+            iteration_context = f"\nThis is iteration {iteration+1}. "
+            if team_id in team_outputs:
+                prev_output = team_outputs[team_id].get("final_output", "")
+                iteration_context += f"Your previous output was: {prev_output}\n"
+            supervisor_prompt = supervisor_prompt.replace("{iteration}", iteration_context)
+        else:
+            supervisor_prompt = supervisor_prompt.replace("{iteration}", "")
+        
         # Add available workers information
         workers_info = "\n\nAvailable workers:\n" + "\n".join([
             f"- {worker.get('name', f'worker_{idx}')} ({worker.get('role', 'worker')}): {worker.get('description', 'No description')}"
@@ -321,7 +420,7 @@ class HybridWorkflowEngine(WorkflowEngine):
         
         # Track usage
         agent_usage.append({
-            "iteration": 1,
+            "iteration": iteration + 1,
             "agent": supervisor_id,
             "team": team_id,
             "role": "supervisor",
@@ -333,8 +432,13 @@ class HybridWorkflowEngine(WorkflowEngine):
         worker_outputs = {}
         
         # Parse supervisor response to determine which workers to use
-        # For now, we'll use all workers - this could be enhanced to be more selective
-        selected_workers = workers
+        selected_workers = self._select_workers_from_supervisor_response(
+            supervisor_output, workers
+        )
+        
+        if not selected_workers:
+            # If no workers could be determined from parsing, use all workers
+            selected_workers = workers
         
         # Process each worker
         for worker in selected_workers:
@@ -355,6 +459,9 @@ class HybridWorkflowEngine(WorkflowEngine):
                 worker_prompt = worker_prompt.replace("{worker_outputs}", context)
             else:
                 worker_prompt = worker_prompt.replace("{worker_outputs}", "No worker outputs yet")
+            
+            # Add iteration information if this is an iterative workflow
+            worker_prompt = worker_prompt.replace("{iteration}", f"Iteration {iteration+1}" if iteration > 0 else "")
             
             # Check if worker has RAG capabilities
             worker_tools = worker.get("tools", [])
@@ -379,7 +486,7 @@ class HybridWorkflowEngine(WorkflowEngine):
             
             # Track usage
             agent_usage.append({
-                "iteration": 1,
+                "iteration": iteration + 1,
                 "agent": worker_id,
                 "team": team_id,
                 "role": worker_role,
@@ -416,7 +523,7 @@ class HybridWorkflowEngine(WorkflowEngine):
         self, agent: Dict[str, Any], query: str,
         all_agents: Dict[str, Any], team_outputs: Dict[str, Any],
         peer_outputs: Dict[str, Any], agent_usage: List[Dict[str, Any]],
-        execution_graph: Dict[str, Set[str]]
+        execution_graph: Dict[str, Set[str]], iteration: int = 0
     ) -> str:
         """Process a single peer agent"""
         agent_id = agent.get("name", f"agent_{uuid.uuid4().hex[:8]}")
@@ -435,6 +542,19 @@ class HybridWorkflowEngine(WorkflowEngine):
             agent_prompt = agent_prompt.replace("{context}", context)
         else:
             agent_prompt = agent_prompt.replace("{context}", "No context available yet")
+        
+        # Add iteration information if this is an iterative workflow
+        if iteration > 0:
+            iteration_context = f"\nThis is iteration {iteration+1}. "
+            # Check if we have a previous output for this agent
+            if agent_id in peer_outputs:
+                prev_output = peer_outputs[agent_id]
+                if isinstance(prev_output, dict) and "output" in prev_output:
+                    prev_output = prev_output["output"]
+                iteration_context += f"Your previous output was: {prev_output}\n"
+            agent_prompt = agent_prompt.replace("{iteration}", iteration_context)
+        else:
+            agent_prompt = agent_prompt.replace("{iteration}", "")
         
         # Check if agent has RAG capabilities
         agent_tools = agent.get("tools", [])
@@ -458,7 +578,7 @@ class HybridWorkflowEngine(WorkflowEngine):
         
         # Track usage
         agent_usage.append({
-            "iteration": 1,
+            "iteration": iteration + 1,
             "agent": agent_id,
             "team": None,
             "role": agent_role,
@@ -473,6 +593,37 @@ class HybridWorkflowEngine(WorkflowEngine):
                 execution_graph[agent_id].add(other_agent_id)
         
         return agent_output
+    
+    def _select_workers_from_supervisor_response(self, supervisor_output: str, workers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Parse supervisor response to determine which workers to use"""
+        selected_workers = []
+        worker_names = [worker.get("name") for worker in workers]
+        
+        # Look for explicit worker assignments
+        if "WORKERS:" in supervisor_output or "ASSIGN:" in supervisor_output:
+            # Check for WORKERS: or ASSIGN: format
+            assignment_section = None
+            if "WORKERS:" in supervisor_output:
+                assignment_section = supervisor_output.split("WORKERS:")[1].split("\n\n")[0]
+            elif "ASSIGN:" in supervisor_output:
+                assignment_section = supervisor_output.split("ASSIGN:")[1].split("\n\n")[0]
+            
+            if assignment_section:
+                # Parse worker names from the section
+                for worker_name in worker_names:
+                    if worker_name in assignment_section:
+                        worker = next((w for w in workers if w.get("name") == worker_name), None)
+                        if worker:
+                            selected_workers.append(worker)
+        
+        # If no explicit assignments, look for worker names in the text
+        if not selected_workers:
+            for worker in workers:
+                worker_name = worker.get("name")
+                if worker_name in supervisor_output:
+                    selected_workers.append(worker)
+        
+        return selected_workers
     
     def _create_context(
         self, current_team_id: Optional[str], current_agent_id: str,
@@ -491,7 +642,10 @@ class HybridWorkflowEngine(WorkflowEngine):
         # Add peer outputs (excluding current agent)
         for agent_id, output in peer_outputs.items():
             if agent_id != current_agent_id:
-                context_parts.append(f"Agent {agent_id}: {output}")
+                if isinstance(output, dict) and "output" in output:
+                    context_parts.append(f"Agent {agent_id}: {output['output']}")
+                else:
+                    context_parts.append(f"Agent {agent_id}: {output}")
         
         if not context_parts:
             return "No prior context available."
@@ -525,7 +679,10 @@ class HybridWorkflowEngine(WorkflowEngine):
         if peer_outputs:
             prompt += "\nIndividual agent outputs:\n"
             for agent_id, output in peer_outputs.items():
-                prompt += f"Agent {agent_id}:\n{output}\n\n"
+                if isinstance(output, dict) and "output" in output:
+                    prompt += f"Agent {agent_id}:\n{output['output']}\n\n"
+                else:
+                    prompt += f"Agent {agent_id}:\n{output}\n\n"
         
         return prompt
     
@@ -533,17 +690,168 @@ class HybridWorkflowEngine(WorkflowEngine):
         """
         Extract delegation instructions from agent output
         
-        Example format:
-        DELEGATE: agent1, team2
+        Example formats:
+        - DELEGATE: agent1, team2
+        - ASSIGN TO: agent1, team2
         """
         delegations = []
         
-        # Look for delegation instructions
-        if "DELEGATE:" in agent_output:
-            delegation_line = agent_output.split("DELEGATE:")[1].split("\n")[0].strip()
-            delegations = [d.strip() for d in delegation_line.split(",")]
+        # Check for delegation instructions in various formats
+        delegation_markers = ["DELEGATE:", "ASSIGN TO:", "DELEGATING TO:"]
+        for marker in delegation_markers:
+            if marker in agent_output:
+                parts = agent_output.split(marker)
+                if len(parts) > 1:
+                    delegation_line = parts[1].split("\n")[0].strip()
+                    delegations.extend([d.strip() for d in delegation_line.split(",")])
         
         return delegations
+    
+    def _check_convergence(self, team_outputs: Dict[str, Any], peer_outputs: Dict[str, Any], iteration: int) -> bool:
+        """Check if the outputs have converged and further iterations are unnecessary"""
+        # If this is the first iteration, always continue
+        if iteration == 0:
+            return False
+        
+        # Check team outputs for convergence
+        for team_id, output in team_outputs.items():
+            if "history" in output and len(output["history"]) > 0:
+                # Get the current and previous outputs
+                current_output = output.get("final_output", "")
+                previous_output = output["history"][-1].get("final_output", "")
+                
+                # If outputs are very different, continue iterations
+                if self._calculate_difference(current_output, previous_output) > 0.3:
+                    return False
+        
+        # Check peer outputs for convergence
+        for agent_id, output in peer_outputs.items():
+            if isinstance(output, dict) and "history" in output and len(output["history"]) > 0:
+                # Get the current and previous outputs
+                current_output = output.get("output", "")
+                previous_output = output["history"][-1].get("output", "")
+                
+                # If outputs are very different, continue iterations
+                if self._calculate_difference(current_output, previous_output) > 0.3:
+                    return False
+        
+        # If we get here, outputs have likely converged
+        return True
+    
+    def _calculate_difference(self, text1: str, text2: str) -> float:
+        """Calculate a simple difference score between two text outputs"""
+        # Very basic difference calculation based on length
+        if not text1 or not text2:
+            return 1.0
+            
+        len_diff = abs(len(text1) - len(text2)) / max(len(text1), len(text2))
+        
+        # Check for shared content (very simple approach)
+        shared_words = set(text1.lower().split()) & set(text2.lower().split())
+        word_similarity = len(shared_words) / max(len(text1.split()), len(text2.split()))
+        
+        # Combine metrics with more weight on word similarity
+        return 0.3 * len_diff + 0.7 * (1 - word_similarity)
+    
+    async def _add_hybrid_execution_logs(self, db, execution_id, result: Dict[str, Any]):
+        """Add hybrid workflow execution logs to the database"""
+        # Log team outputs
+        outputs = result.get("outputs", {})
+        for output_key, output_value in outputs.items():
+            if output_key.startswith("team:"):
+                team_id = output_key.split(":")[1]
+                
+                # Log supervisor output
+                supervisor_output = output_value.get("supervisor_output", "")
+                if supervisor_output:
+                    supervisor_log = ExecutionLog(
+                        execution_id=execution_id,
+                        level="info",
+                        agent=f"supervisor_{team_id}",
+                        message=f"Team {team_id} Supervisor",
+                        data={"content": supervisor_output}
+                    )
+                    db.add(supervisor_log)
+                
+                # Log worker outputs
+                worker_outputs = output_value.get("worker_outputs", {})
+                for worker_id, worker_output in worker_outputs.items():
+                    worker_log = ExecutionLog(
+                        execution_id=execution_id,
+                        level="info",
+                        agent=worker_id,
+                        message=f"Team {team_id} Worker",
+                        data={"content": worker_output}
+                    )
+                    db.add(worker_log)
+                
+                # Log team final output
+                team_final = output_value.get("final_output", "")
+                if team_final:
+                    team_log = ExecutionLog(
+                        execution_id=execution_id,
+                        level="info",
+                        agent=f"team_{team_id}",
+                        message=f"Team {team_id} Final Output",
+                        data={"content": team_final}
+                    )
+                    db.add(team_log)
+            
+            elif output_key.startswith("agent:"):
+                agent_id = output_key.split(":")[1]
+                
+                # Handle both string outputs and structured outputs
+                if isinstance(output_value, dict) and "output" in output_value:
+                    agent_output = output_value["output"]
+                else:
+                    agent_output = output_value
+                    
+                agent_log = ExecutionLog(
+                    execution_id=execution_id,
+                    level="info",
+                    agent=agent_id,
+                    message=f"Peer Agent Output",
+                    data={"content": agent_output}
+                )
+                db.add(agent_log)
+        
+        # Log execution graph
+        execution_graph = result.get("execution_graph", {})
+        if execution_graph:
+            graph_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent="system",
+                message="Execution Graph",
+                data={"graph": execution_graph}
+            )
+            db.add(graph_log)
+        
+        # Log agent usage statistics
+        agent_usage = result.get("agent_usage", [])
+        if agent_usage:
+            usage_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent="system",
+                message="Agent Usage Statistics",
+                data={"usage": agent_usage}
+            )
+            db.add(usage_log)
+        
+        # Log final output
+        final_output = result.get("final_output", "")
+        if final_output:
+            final_log = ExecutionLog(
+                execution_id=execution_id,
+                level="info",
+                agent="system",
+                message="Final Output",
+                data={"content": final_output}
+            )
+            db.add(final_log)
+        
+        db.commit()
     
     async def execute_workflow(self, template: Template, workflow: Workflow, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Override execute_workflow to handle hybrid workflows"""
