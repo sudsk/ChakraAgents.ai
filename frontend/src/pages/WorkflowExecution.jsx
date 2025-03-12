@@ -44,7 +44,7 @@ import {
 import { 
   FiArrowLeft, FiCpu, FiActivity, FiMessageCircle, FiCheckCircle, 
   FiAlertCircle, FiClock, FiRepeat, FiChevronRight, FiDownload,
-  FiInfo, FiSettings
+  FiInfo, FiSettings, FiUsers
 } from 'react-icons/fi';
 
 // Status badge component
