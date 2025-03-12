@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 from app.core.security import get_current_active_user
 from app.db.models import Workflow, WorkflowExecution, ExecutionLog, User, Template
 from app.db.session import get_db
-from app.engine.template_engine import TemplateEngine
+from app.engine.workflow_engine import WorkflowEngine
 from pydantic import BaseModel, ConfigDict  # Add ConfigDict here
 
 router = APIRouter(prefix="/workflow-executions", tags=["executions"])
@@ -64,7 +64,7 @@ async def execute_workflow_background(
 ):
     """
     Execute a workflow in the background.
-    This function uses the template engine to run the workflow.
+    This function uses the workflow engine to run the workflow.
     """
     try:
         # Get workflow and template
@@ -91,8 +91,8 @@ async def execute_workflow_background(
         db.add(start_log)
         db.commit()
         
-        # Initialize the template engine and run the workflow
-        engine = TemplateEngine()
+        # Initialize the workflow engine and run the workflow
+        engine = WorkflowEngine()
         
         # Log milestone
         milestone_log = ExecutionLog(
