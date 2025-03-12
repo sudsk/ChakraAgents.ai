@@ -464,4 +464,4 @@ class TemplateEngine:
         return state
         
 # Create a global instance
-# template_engine = TemplateEngine()
+template_engine = TemplateEngine()
