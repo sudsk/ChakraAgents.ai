@@ -1,3 +1,36 @@
+async def execute_tool(self, tool_name: str, **params) -> Any:
+    """Execute a tool by name with the given parameters"""
+    if tool_name not in self.registered_tools:
+        raise ValueError(f"Tool '{tool_name}' not registered")
+    
+    logger.info(f"Executing tool: {tool_name} with params: {params}")
+    try:
+        result = self.registered_tools[tool_name](**params)
+        if asyncio.iscoroutine(result):
+            result = await result
+        return result
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {str(e)}")
+        return f"Error executing tool {tool_name}: {str(e)}"
+        
+async def process_with_rag(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process a query using RAG capabilities"""
+    model_provider = config.get("model_provider", "vertex_ai")
+    model_name = config.get("model_name", "gemini-1.5-pro")
+    system_message = config.get("system_message", "")
+    temperature = config.get("temperature", 0.3)
+    num_results = config.get("num_results", 5)
+    
+    return await self.rag_tool.process_with_rag(
+        query=query,
+        llm_provider=self.llm_provider,
+        model_provider=model_provider,
+        model_name=model_name,
+        temperature=temperature,
+        num_results=num_results,
+        system_message=system_message
+    )
+        
 # backend/app/engine/workflow_engine.py
 import logging
 import json
@@ -557,37 +590,3 @@ Context:
         
         logger.info(f"Loaded checkpoint from {filepath}")
         return state
-
-    async def execute_tool(self, tool_name: str, **params) -> Any:
-        """Execute a tool by name with the given parameters"""
-        if tool_name not in self.registered_tools:
-            raise ValueError(f"Tool '{tool_name}' not registered")
-        
-        logger.info(f"Executing tool: {tool_name} with params: {params}")
-        try:
-            result = self.registered_tools[tool_name](**params)
-            if asyncio.iscoroutine(result):
-                result = await result
-            return result
-        except Exception as e:
-            logger.error(f"Error executing tool {tool_name}: {str(e)}")
-            return f"Error executing tool {tool_name}: {str(e)}"
-    
-    async def process_with_rag(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a query using RAG capabilities"""
-        model_provider = config.get("model_provider", "vertex_ai")
-        model_name = config.get("model_name", "gemini-1.5-pro")
-        system_message = config.get("system_message", "")
-        temperature = config.get("temperature", 0.3)
-        num_results = config.get("num_results", 5)
-        
-        return await self.rag_tool.process_with_rag(
-            query=query,
-            llm_provider=self.llm_provider,
-            model_provider=model_provider,
-            model_name=model_name,
-            temperature=temperature,
-            num_results=num_results,
-            system_message=system_message
-        )
-        
