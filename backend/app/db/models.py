@@ -42,12 +42,14 @@ class Template(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     description = Column(Text)
-    workflow_type = Column(String, nullable=False)  # 'supervisor' or 'swarm'
+    workflow_type = Column(String, nullable=False)  # 'supervisor', 'swarm',  'rag', or 'hybrid'
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     config = Column(JSONB, nullable=False)  # Store JSON configuration
-
+    rag_enabled = Column(Boolean, default=False)
+    vector_store_id = Column(UUID(as_uuid=True), ForeignKey("vector_stores.id"), nullable=True)
+    
     # Relationships
     created_by = relationship("User", back_populates="templates")
     workflows = relationship("Workflow", back_populates="template")
