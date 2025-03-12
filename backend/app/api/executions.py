@@ -257,6 +257,13 @@ async def create_execution(
 ):
     """
     Create a new workflow execution and start it in the background.
+    The system supports various workflow types:
+    - "supervisor": A hierarchical system with a supervisor agent coordinating worker agents
+    - "swarm": A collaborative system where agents work together as peers
+    - "rag": A specialized workflow for Retrieval-Augmented Generation
+    
+    For RAG-enabled workflows, agents with the "retrieve_information" tool will automatically
+    access the vector store to retrieve relevant information based on the query.    
     """
     # Check if workflow exists and user has access
     workflow = db.query(Workflow).filter(Workflow.id == execution_in.workflow_id).first()
