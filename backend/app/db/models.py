@@ -48,7 +48,8 @@ class Template(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     config = Column(JSONB, nullable=False)  # Store JSON configuration
     rag_enabled = Column(Boolean, default=False)
-    vector_store_id = Column(UUID(as_uuid=True), ForeignKey("vector_stores.id"), nullable=True)
+    # vector_store_id = Column(UUID(as_uuid=True), ForeignKey("vector_stores.id"), nullable=True)
+    vector_store_id = Column(String, nullable=True)  # Optional reference to a specific vector store
     
     # Relationships
     created_by = relationship("User", back_populates="templates")
