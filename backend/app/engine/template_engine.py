@@ -463,5 +463,3 @@ class TemplateEngine:
         logger.info(f"Loaded checkpoint from {filepath}")
         return state
         
-# Create a global instance
-template_engine = TemplateEngine()
