@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 import apiClient from '../services/api';
 import RAGConfigurationPanel from '../components/RAGConfigurationPanel';  
-import HybridConfigurationPanel from '../components/HybridConfigurationPanel';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -521,117 +520,7 @@ const TemplateEditor = () => {
         ...prev,
         enabled: true
       }));
-    } else if (type === "hybrid") {
-      // Setup a hybrid configuration
-      newConfig = {
-        teams: [
-          {
-            id: `team_${Date.now().toString(36)}`,
-            name: 'Research Team',
-            description: 'A team specialized in information retrieval and analysis',
-            supervisor: {
-              name: 'research_supervisor',
-              role: 'supervisor',
-              model_provider: 'vertex_ai',
-              model_name: 'gemini-1.5-pro',
-              prompt_template: `You are a research supervisor coordinating a team of specialized workers.
-  Your task is to analyze the following query, break it down into subtasks, and coordinate with your workers to solve it.
-  
-  Query: {input}
-  
-  Context from other teams/agents: {context}`,
-              temperature: 0.3,
-              system_message: 'You are a research supervisor agent. Your role is to coordinate your research team effectively and synthesize their outputs into a coherent response.'
-            },
-            workers: [
-              {
-                name: 'retriever',
-                role: 'researcher',
-                model_provider: 'vertex_ai',
-                model_name: 'gemini-1.5-flash',
-                prompt_template: `You are a research worker specialized in information retrieval.
-  
-  Task from supervisor: {supervisor_response}
-  Original query: {input}
-  Previous worker outputs: {worker_outputs}
-  Retrieved information: {retrieved_information}
-  
-  Your job is to find and present key facts and information relevant to the query.`,
-                temperature: 0.3,
-                system_message: 'You are an information retriever specialized in finding relevant facts and data.',
-                tools: ['retrieve_information']
-              },
-              {
-                name: 'analyst',
-                role: 'analyst',
-                model_provider: 'vertex_ai',
-                model_name: 'gemini-1.5-pro',
-                prompt_template: `You are a research worker specialized in analysis.
-  
-  Task from supervisor: {supervisor_response}
-  Original query: {input}
-  Previous worker outputs: {worker_outputs}
-  
-  Your job is to analyze the information provided by other workers and identify key insights, patterns, and implications.`,
-                temperature: 0.4,
-                system_message: 'You are an analyst specialized in interpreting information and identifying insights.'
-              }
-            ]
-          }
-        ],
-        peer_agents: [
-          {
-            name: 'critic',
-            role: 'critic',
-            model_provider: 'vertex_ai',
-            model_name: 'gemini-1.5-pro',
-            prompt_template: `You are a critical thinker working independently.
-  
-  Query: {input}
-  Context from other agents/teams: {context}
-  
-  Your job is to evaluate the work done by other agents and teams, identifying potential weaknesses, oversights, or biases in their approach.`,
-            temperature: 0.3,
-            system_message: 'You are a critic responsible for quality control and identifying potential issues in the work done by others.'
-          }
-        ],
-        coordination: {
-          type: 'sequential',
-          final_agent: null
-        },
-        tools: [{
-          name: 'retrieve_information',
-          description: 'Retrieve relevant information from the knowledge base for the given query',
-          function_name: 'retrieve_information',
-          parameters: {
-            query: {
-              type: 'string',
-              description: 'The search query'
-            },
-            num_results: {
-              type: 'integer',
-              description: 'Number of results to retrieve (default: 5)'
-            }
-          }
-        }],
-        workflow_config: {
-          max_iterations: 2,
-          checkpoint_dir: './checkpoints/hybrid'
-        },
-        rag_enabled: true,
-        rag_config: {
-          retrievalSettings: ragConfig.retrievalSettings,
-          vectorStoreSettings: ragConfig.vectorStoreSettings,
-          promptSettings: ragConfig.promptSettings
-        }
-      };
-      
-      // Enable RAG for hybrid workflows by default
-      setRagConfig(prev => ({
-        ...prev,
-        enabled: true
-      }));
-    }
+    } 
     
     setTemplate({
       ...template,
@@ -944,7 +833,6 @@ const TemplateEditor = () => {
                   <option value="supervisor">Supervisor-Worker</option>
                   <option value="swarm">Agent Swarm</option>
                   <option value="rag">RAG (Retrieval-Augmented Generation)</option>
-                  <option value="hybrid">Hybrid (Advanced)</option>
                 </Select>
                 <FormHelperText>
                   {template.workflow_type === 'supervisor' 
@@ -966,9 +854,6 @@ const TemplateEditor = () => {
               <Tab><Icon as={FiTool} mr={2} /> Tools</Tab>
               <Tab><Icon as={FiSettings} mr={2} /> Settings</Tab>
               <Tab><Icon as={FiDatabase} mr={2} /> RAG</Tab>
-              {template.workflow_type === 'hybrid' && (
-                <Tab><Icon as={FiUsers} mr={2} /> Hybrid</Tab>
-              )}
             </TabList>            
             
             <TabPanels>
@@ -1285,20 +1170,6 @@ const TemplateEditor = () => {
                   </Box>
                 )}
               </TabPanel>              
-            {/* Hybrid Configuration Tab */}
-            {template.workflow_type === 'hybrid' && (
-              <TabPanel p={0} pt={4}>
-                <HybridConfigurationPanel
-                  config={template.config}
-                  onChange={(newConfig) => {
-                    handleFormChange('config', newConfig);
-                  }}
-                  isEditing={true}
-                  agents={modelOptions}
-                  tools={template.config.tools || []}
-                />
-              </TabPanel>
-            )}              
             </TabPanels>
           </Tabs>
         </Box>
