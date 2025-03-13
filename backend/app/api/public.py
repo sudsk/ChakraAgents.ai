@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.db.models import Workflow, Deployment, WorkflowExecution, Template, DeploymentStat
 from app.db.session import get_db
-from app.engine.core.workflow_engine import WorkflowEngine
+from app.engine.workflow_engine import WorkflowEngine
 
 router = APIRouter()
 
