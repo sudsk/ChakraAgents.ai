@@ -149,6 +149,63 @@ class Document(Base):
 User.vector_stores = relationship("VectorStore", back_populates="created_by")
 User.documents = relationship("Document", back_populates="created_by")
 
+class Deployment(Base):
+    __tablename__ = "deployments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
+    version = Column(String, nullable=False, default="v1")
+    status = Column(String, nullable=False)  # active, inactive
+    api_key = Column(String, nullable=False)
+    endpoint_url = Column(String, nullable=False)
+    description = Column(Text)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    workflow = relationship("Workflow", back_populates="deployments")
+    created_by = relationship("User", back_populates="deployments")
+    integrations = relationship("Integration", back_populates="deployment", cascade="all, delete-orphan")
+    execution_stats = relationship("DeploymentStat", back_populates="deployment", cascade="all, delete-orphan")
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"), nullable=False)
+    integration_type = Column(String, nullable=False)  # webhook, apikey, etc.
+    config = Column(JSONB, nullable=False)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    deployment = relationship("Deployment", back_populates="integrations")
+    created_by = relationship("User", back_populates="integrations")
+
+class DeploymentStat(Base):
+    __tablename__ = "deployment_stats"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"), nullable=False)
+    date = Column(DateTime, nullable=False)
+    requests_count = Column(Integer, default=0)
+    successful_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    total_latency = Column(Integer, default=0)  # in milliseconds
+
+    # Relationships
+    deployment = relationship("Deployment", back_populates="execution_stats")
+
+# Update existing models with new relationships
+User.deployments = relationship("Deployment", back_populates="created_by")
+User.integrations = relationship("Integration", back_populates="created_by")
+Workflow.deployments = relationship("Deployment", back_populates="workflow")
+
+
 # Create indexes for common queries
 # Note: These are SQLAlchemy event listeners that will create indexes when tables are created
 from sqlalchemy import event, text
