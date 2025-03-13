@@ -6,7 +6,7 @@ import {
   FiHome, FiLayout, FiCpu, FiSettings, 
   FiActivity, FiGrid, FiTool, FiBox,
   FiList, FiShare2, FiMessageCircle, FiDatabase,
-  FiCheckSquare, FiHardDrive
+  FiCheckSquare, FiHardDrive, FiPlus
 } from 'react-icons/fi';
 
 // Navigation item component with active state
