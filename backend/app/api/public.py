@@ -150,3 +150,206 @@ async def execute_workflow(
     engine = WorkflowEngine()
     import time
     start_time = time.time()
+    
+    try:
+        # Execute workflow
+        result = await engine.execute_workflow(
+            template=template,
+            workflow=workflow,
+            input_data=request.input_data
+        )
+        
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Update execution record
+        execution.status = "completed" if result.get("success", False) else "failed"
+        execution.result = result
+        execution.completed_at = db.func.now()
+        
+        if not result.get("success", False):
+            execution.error = result.get("error", "Unknown error")
+        
+        db.add(execution)
+        db.commit()
+        
+        # Estimate token usage (in a real implementation, this would come from the LLM provider)
+        # Here we're using a simple heuristic based on character count
+        input_tokens = len(str(request.input_data)) // 4  # Rough estimate
+        output_tokens = len(str(result)) // 4  # Rough estimate
+        
+        # Log usage stats in background
+        background_tasks.add_task(
+            log_usage_stats,
+            deployment_id=deployment.id,
+            execution_id=execution.id,
+            success=result.get("success", False),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            db=db
+        )
+        
+        # Send webhook notification if configured
+        background_tasks.add_task(
+            send_webhook_notifications,
+            deployment_id=deployment.id,
+            execution_id=execution.id,
+            status=execution.status,
+            result=result,
+            db=db
+        )
+        
+        return WorkflowExecutionResponse(
+            execution_id=execution.id,
+            status=execution.status,
+            result=result,
+            error=execution.error
+        )
+        
+    except Exception as e:
+        # Handle execution errors
+        execution.status = "failed"
+        execution.error = str(e)
+        execution.completed_at = db.func.now()
+        db.add(execution)
+        db.commit()
+        
+        # Calculate latency even for errors
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Log usage stats in background
+        background_tasks.add_task(
+            log_usage_stats,
+            deployment_id=deployment.id,
+            execution_id=execution.id,
+            success=False,
+            input_tokens=len(str(request.input_data)) // 4,  # Rough estimate
+            output_tokens=0,
+            latency_ms=latency_ms,
+            db=db
+        )
+        
+        return WorkflowExecutionResponse(
+            execution_id=execution.id,
+            status="failed",
+            error=str(e)
+        )
+
+async def send_webhook_notifications(
+    deployment_id: UUID,
+    execution_id: UUID,
+    status: str,
+    result: Dict[str, Any],
+    db: Session
+):
+    """
+    Send webhook notifications for the execution.
+    This is run as a background task after the execution completes.
+    """
+    import httpx
+    import json
+    from app.db.models import Integration
+    
+    # Find webhooks for this deployment that should receive this event
+    webhooks = db.query(Integration).filter(
+        Integration.deployment_id == deployment_id,
+        Integration.integration_type == "webhook"
+    ).all()
+    
+    for webhook in webhooks:
+        # Check if this webhook should receive notifications for this status
+        events = webhook.config.get("events", [])
+        if status.lower() not in events and "all" not in events:
+            continue
+        
+        # Prepare webhook payload
+        payload = {
+            "execution_id": str(execution_id),
+            "status": status,
+            "timestamp": db.func.now().isoformat(),
+            "result": result if status == "completed" else None,
+            "error": result.get("error") if status == "failed" else None
+        }
+        
+        # Get webhook URL
+        url = webhook.config.get("url")
+        if not url:
+            continue
+        
+        # Get webhook secret for HMAC validation (if configured)
+        secret = webhook.config.get("secret")
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        # Add HMAC signature if secret is configured
+        if secret:
+            import hmac
+            import hashlib
+            
+            payload_bytes = json.dumps(payload).encode()
+            signature = hmac.new(
+                secret.encode(),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+            
+            headers["X-ChakraAgents-Signature"] = signature
+        
+        # Send the webhook
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=10.0
+                )
+        except Exception as e:
+            # Log webhook failure but don't fail the request
+            print(f"Webhook notification to {url} failed: {str(e)}")
+
+@router.get("/deployments/{deployment_id}/status", response_model=Dict[str, Any])
+async def get_deployment_status(
+    deployment_id: UUID,
+    deployment: Deployment = Depends(get_deployment_from_api_key),
+    db: Session = Depends(get_db),
+):
+    """
+    Get the status of a deployment.
+    This endpoint can be used by client applications to verify connectivity and authentication.
+    """
+    # Verify the deployment ID matches the API key's deployment
+    if str(deployment.id) != str(deployment_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key not authorized for this deployment",
+        )
+    
+    # Get the workflow
+    workflow = db.query(Workflow).filter(Workflow.id == deployment.workflow_id).first()
+    
+    # Get recent executions
+    recent_executions = db.query(WorkflowExecution)\
+        .filter(WorkflowExecution.workflow_id == deployment.workflow_id)\
+        .order_by(WorkflowExecution.started_at.desc())\
+        .limit(5)\
+        .all()
+    
+    return {
+        "status": deployment.status,
+        "workflow_id": str(deployment.workflow_id),
+        "workflow_name": workflow.name if workflow else "Unknown",
+        "version": deployment.version,
+        "recent_executions": [
+            {
+                "id": str(exec.id),
+                "status": exec.status,
+                "started_at": exec.started_at.isoformat() if exec.started_at else None,
+                "completed_at": exec.completed_at.isoformat() if exec.completed_at else None,
+            }
+            for exec in recent_executions
+        ]
+    }
