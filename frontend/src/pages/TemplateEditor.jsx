@@ -39,7 +39,7 @@ import {
   Spinner,
   Icon
 } from '@chakra-ui/react';
-import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, FiTool, FiSettings, FiUsers } from 'react-icons/fi';
+import { FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, FiTool, FiSettings, FiUsers, FiDatabase  } from 'react-icons/fi';
 
 // Define component for agent configuration form
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
