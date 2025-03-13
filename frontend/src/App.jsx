@@ -1,5 +1,4 @@
-/* eslint-disable no-unused-vars */
-// src/App.jsx
+// frontend/src/App.jsx with agentic routes integrated
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
@@ -12,6 +11,13 @@ import Workflows from './pages/Workflows';
 import WorkflowExecution from './pages/WorkflowExecution';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+
+// New Agentic Pages
+import AgenticDashboard from './pages/AgenticDashboard';
+import RunAgenticWorkflow from './pages/RunAgenticWorkflow';
+import AgenticWorkflowCreator from './pages/AgenticWorkflowCreator';
+import AgenticWorkflowExecution from './pages/AgenticWorkflowExecution';
+import AgenticToolsManager from './pages/AgenticToolsManager';
 
 // Components
 import Layout from './components/Layout';
@@ -35,6 +41,18 @@ const theme = extendTheme({
       800: '#00304d',
       900: '#00131a',
     },
+    purple: {
+      50: '#f3e8ff',
+      100: '#e4ccff',
+      200: '#d3afff',
+      300: '#c392ff',
+      400: '#b375ff',
+      500: '#9f58ff',
+      600: '#8c3dff',
+      700: '#7922ff',
+      800: '#6600ff',
+      900: '#5200cc',
+    },
   },
   fonts: {
     heading: "'Inter', sans-serif",
@@ -54,6 +72,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           
           <Route element={<Layout />}>
+            {/* Original Routes */}
             <Route path="/" element={
               <ProtectedRoute>
                 <Dashboard />
@@ -93,6 +112,43 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            } />
+            
+            {/* New Agentic Routes */}
+            <Route path="/agentic" element={
+              <ProtectedRoute>
+                <AgenticDashboard />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/agentic/tools" element={
+              <ProtectedRoute>
+                <AgenticToolsManager />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/agentic/workflows/new" element={
+              <ProtectedRoute>
+                <AgenticWorkflowCreator />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/agentic/workflows/:id/edit" element={
+              <ProtectedRoute>
+                <AgenticWorkflowCreator />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/workflows/:workflowId/run" element={
+              <ProtectedRoute>
+                <RunAgenticWorkflow />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/workflows/:workflowId/execution/:executionId" element={
+              <ProtectedRoute>
+                <AgenticWorkflowExecution />
               </ProtectedRoute>
             } />
           </Route>
