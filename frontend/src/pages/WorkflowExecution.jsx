@@ -1,6 +1,5 @@
 /* eslint-disable no-unused-vars */
 import apiClient from '../services/api';
-import HybridWorkflowVisualization from '../components/HybridWorkflowVisualization';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -322,9 +321,6 @@ const WorkflowExecution = () => {
           <Tab><Icon as={FiMessageCircle} mr={2} /> Agent Interactions</Tab>
           <Tab><Icon as={FiCpu} mr={2} /> Execution Details</Tab>
           <Tab><Icon as={FiSettings} mr={2} /> Configuration</Tab>
-          {template?.workflow_type === "hybrid" && (
-            <Tab><Icon as={FiUsers} mr={2} /> Hybrid View</Tab>
-          )}          
         </TabList>
         
         <TabPanels>
@@ -652,59 +648,9 @@ const WorkflowExecution = () => {
                     </AccordionPanel>
                   </AccordionItem>
                 </Accordion>
-                {template?.workflow_type === "hybrid" && (
-                  <Box mt={6}>
-                    <Heading size="sm" mb={3}>Hybrid Workflow Configuration</Heading>
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                      <Box>
-                        <Text fontWeight="bold" color="gray.600" fontSize="sm">Teams</Text>
-                        <Text>{template.config.teams?.length || 0} teams configured</Text>
-                      </Box>
-                      <Box>
-                        <Text fontWeight="bold" color="gray.600" fontSize="sm">Peer Agents</Text>
-                        <Text>{template.config.peer_agents?.length || 0} peer agents</Text>
-                      </Box>
-                      <Box>
-                        <Text fontWeight="bold" color="gray.600" fontSize="sm">Coordination Type</Text>
-                        <Badge>{template.config.coordination?.type || 'sequential'}</Badge>
-                      </Box>
-                      <Box>
-                        <Text fontWeight="bold" color="gray.600" fontSize="sm">Final Synthesizer</Text>
-                        <Text>{template.config.coordination?.final_agent || 'Auto-synthesize'}</Text>
-                      </Box>
-                    </SimpleGrid>
-                    
-                    <Accordion allowToggle mt={4}>
-                      <AccordionItem>
-                        <h2>
-                          <AccordionButton>
-                            <Box flex='1' textAlign='left'>
-                              Hybrid Configuration Details
-                            </Box>
-                            <AccordionIcon />
-                          </AccordionButton>
-                        </h2>
-                        <AccordionPanel pb={4}>
-                          <Code p={3} borderRadius="md" w="100%" display="block" whiteSpace="pre" maxH="300px" overflow="auto">
-                            {JSON.stringify(template.config, null, 2)}
-                          </Code>
-                        </AccordionPanel>
-                      </AccordionItem>
-                    </Accordion>
-                  </Box>
-                )}
               </CardBody>
             </Card>
           </TabPanel>
-          {/* Hybrid Workflow Visualization Panel */}
-          {template?.workflow_type === "hybrid" && (
-            <TabPanel p={0} pt={4}>
-              <HybridWorkflowVisualization 
-                executionData={execution} 
-                logs={execution?.logs || []} 
-              />
-            </TabPanel>
-          )}          
         </TabPanels>
       </Tabs>
     </Box>
