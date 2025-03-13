@@ -3,15 +3,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, templates, workflows, executions, settings as settings_router
+from app.api import auth, templates, workflows, executions, deployments, settings as settings_router
 from app.core.config import settings
 from app.db.session import engine
 from app.db.models import Base
 
 # Initialize FastAPI app
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="API for managing agentic AI workflows",
+    title="ChakraAgents.ai",
+    description="Agentic AI as a Service platform",
     version="1.0.0",
 )
 
@@ -49,7 +49,12 @@ app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["authenticatio
 app.include_router(templates.router, prefix=settings.API_V1_STR, tags=["templates"])
 app.include_router(workflows.router, prefix=settings.API_V1_STR, tags=["workflows"])
 app.include_router(executions.router, prefix=settings.API_V1_STR, tags=["executions"])
+app.include_router(deployments.router, prefix=settings.API_V1_STR, tags=["deployments"])
 app.include_router(settings_router.router, prefix=settings.API_V1_STR, tags=["settings"])
+
+# Public API Router for deployed workflows
+from app.api.public import router as public_router
+app.include_router(public_router, prefix="/api/v1", tags=["public-api"])
 
 # Add exception handlers
 @app.exception_handler(Exception)
