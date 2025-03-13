@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 from pathlib import Path
 
-from app.engine.llm_provider_manager import llm_provider_manager
+from app.engine.llm_providers import llm_provider_manager
 from app.core.config import settings
 from app.db.models import Template, Workflow, WorkflowExecution, ExecutionLog
 from app.engine.tools.rag_tool import RAGTool
