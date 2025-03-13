@@ -1,4 +1,4 @@
-// frontend/src/components/UpdatedSidebar.jsx
+// frontend/src/components/Sidebar.jsx
 import React from 'react';
 import { Box, VStack, Heading, Icon, Flex, Text, Divider, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody, useBreakpointValue, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
@@ -211,4 +211,4 @@ const UpdatedSidebar = ({ isOpen, onClose, ...rest }) => {
   return <SidebarContent {...rest} />;
 };
 
-export default UpdatedSidebar;
+export default Sidebar;
