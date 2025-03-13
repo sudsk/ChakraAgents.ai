@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from app.core.security import get_current_active_user
 from app.db.models import Workflow, Deployment, Integration, User
 from app.db.session import get_db
-from app.engine.core.workflow_engine import WorkflowEngine
+from app.engine.workflow_engine import WorkflowEngine
 
 router = APIRouter(prefix="/deployments", tags=["deployments"])
 
