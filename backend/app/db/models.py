@@ -134,7 +134,7 @@ class Document(Base):
     num_chunks = Column(Integer)  # Number of chunks created
     status = Column(String, default="uploaded")  # uploaded, processing, indexed, error
     error_message = Column(Text)  # Error message if processing failed
-    metadata = Column(JSONB, nullable=False, default={})  # Document metadata
+    #metadata = Column(JSONB, nullable=False, default={})  # Document metadata
     vector_store_id = Column(UUID(as_uuid=True), ForeignKey("vector_stores.id"))
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
