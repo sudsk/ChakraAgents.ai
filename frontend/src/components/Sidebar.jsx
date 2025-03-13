@@ -181,7 +181,7 @@ const SidebarContent = () => {
 };
 
 // Sidebar component with responsive behavior
-const UpdatedSidebar = ({ isOpen, onClose, ...rest }) => {
+const Sidebar = ({ isOpen, onClose, ...rest }) => {
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // For mobile screens, show a drawer
