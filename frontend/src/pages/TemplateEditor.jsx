@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import apiClient from '../services/api';
 import RAGConfigurationPanel from '../components/RAGConfigurationPanel';  
+import RAGTestConsole from '../components/RAGTestConsole';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
