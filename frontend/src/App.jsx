@@ -1,30 +1,21 @@
-// frontend/src/App.jsx with agentic routes integrated
+// frontend/src/App.jsx - Simplified version with only agentic routes
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import Templates from './pages/Templates';
-import TemplateEditor from './pages/TemplateEditor';
-import Workflows from './pages/Workflows';
-import WorkflowExecution from './pages/WorkflowExecution';
-import Settings from './pages/Settings';
-import Login from './pages/Login';
-
-// New Agentic Pages
+// Agentic Pages
 import AgenticDashboard from './pages/AgenticDashboard';
 import RunAgenticWorkflow from './pages/RunAgenticWorkflow';
 import AgenticWorkflowCreator from './pages/AgenticWorkflowCreator';
 import AgenticWorkflowExecution from './pages/AgenticWorkflowExecution';
 import AgenticToolsManager from './pages/AgenticToolsManager';
+import Login from './pages/Login';
+import Settings from './pages/Settings';
 
 // Components
+import UpdatedSidebar from './components/UpdatedSidebar';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// Services
-import authService from './services/auth';
 
 // Theme configuration
 const theme = extendTheme({
@@ -64,6 +55,11 @@ const theme = extendTheme({
   },
 });
 
+// Updated Layout component that uses the agentic sidebar
+const AgenticLayout = () => {
+  return <Layout sidebar={<UpdatedSidebar />} />;
+};
+
 function App() {
   return (
     <ChakraProvider theme={theme}>
@@ -71,63 +67,25 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           
-          <Route element={<Layout />}>
-            {/* Original Routes */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
+          <Route element={<AgenticLayout />}>
+            {/* Main dashboard (redirected from root) */}
+            <Route path="/" element={<Navigate to="/agentic" replace />} />
             
-            <Route path="/templates" element={
-              <ProtectedRoute>
-                <Templates />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/templates/new" element={
-              <ProtectedRoute>
-                <TemplateEditor />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/templates/:id" element={
-              <ProtectedRoute>
-                <TemplateEditor />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/workflows" element={
-              <ProtectedRoute>
-                <Workflows />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/workflows/:id/execution/:executionId" element={
-              <ProtectedRoute>
-                <WorkflowExecution />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            
-            {/* New Agentic Routes */}
+            {/* Agentic Dashboard */}
             <Route path="/agentic" element={
               <ProtectedRoute>
                 <AgenticDashboard />
               </ProtectedRoute>
             } />
             
+            {/* Agentic Tool Management */}
             <Route path="/agentic/tools" element={
               <ProtectedRoute>
                 <AgenticToolsManager />
               </ProtectedRoute>
             } />
             
+            {/* Workflow Creation and Editing */}
             <Route path="/agentic/workflows/new" element={
               <ProtectedRoute>
                 <AgenticWorkflowCreator />
@@ -140,20 +98,30 @@ function App() {
               </ProtectedRoute>
             } />
             
+            {/* Running Workflows */}
             <Route path="/workflows/:workflowId/run" element={
               <ProtectedRoute>
                 <RunAgenticWorkflow />
               </ProtectedRoute>
             } />
             
+            {/* Viewing Workflow Executions */}
             <Route path="/workflows/:workflowId/execution/:executionId" element={
               <ProtectedRoute>
                 <AgenticWorkflowExecution />
               </ProtectedRoute>
             } />
+            
+            {/* Settings */}
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } />
           </Route>
           
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Redirect all other routes to the agentic dashboard */}
+          <Route path="*" element={<Navigate to="/agentic" replace />} />
         </Routes>
       </Router>
     </ChakraProvider>
