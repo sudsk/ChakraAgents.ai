@@ -104,6 +104,51 @@ class ExecutionLog(Base):
     # Relationships
     execution = relationship("WorkflowExecution", back_populates="logs")
 
+class VectorStore(Base):
+    __tablename__ = "vector_stores"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    store_type = Column(String, nullable=False)  # 'chroma', 'faiss', etc.
+    embedding_model = Column(String, nullable=False)  # 'vertex_ai', 'openai', etc.
+    embedding_dimensions = Column(Integer, nullable=False, default=768)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    config = Column(JSONB, nullable=False, default={})  # Store store-specific configuration
+    path = Column(String)  # Path to vector store files if local
+    
+    # Relationships
+    created_by = relationship("User", back_populates="vector_stores")
+    documents = relationship("Document", back_populates="vector_store")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)  # pdf, txt, etc.
+    file_size = Column(Integer)  # Size in bytes
+    num_chunks = Column(Integer)  # Number of chunks created
+    status = Column(String, default="uploaded")  # uploaded, processing, indexed, error
+    error_message = Column(Text)  # Error message if processing failed
+    metadata = Column(JSONB, nullable=False, default={})  # Document metadata
+    vector_store_id = Column(UUID(as_uuid=True), ForeignKey("vector_stores.id"))
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    vector_store = relationship("VectorStore", back_populates="documents")
+    created_by = relationship("User", back_populates="documents")
+
+
+# Update User model to include these relationships
+User.vector_stores = relationship("VectorStore", back_populates="created_by")
+User.documents = relationship("Document", back_populates="created_by")
+
 # Create indexes for common queries
 # Note: These are SQLAlchemy event listeners that will create indexes when tables are created
 from sqlalchemy import event, text
