@@ -209,15 +209,41 @@ class AgentDecisionParser:
                     )
                     return decision
             
+            # Look for patterns indicating tool usage
+            tool_usage_patterns = [
+                r"(?i)I will use the ([a-zA-Z0-9_]+) tool",
+                r"(?i)Using the ([a-zA-Z0-9_]+) tool",
+                r"(?i)Let me ([a-zA-Z0-9_]+) this",
+                r"(?i)I'll ([a-zA-Z0-9_]+) this"
+            ]
+            
+            for pattern in tool_usage_patterns:
+                tool_usage_match = re.search(pattern, content)
+                if tool_usage_match:
+                    potential_tool = tool_usage_match.group(1).strip().lower()
+                    tools_available = context.get("tools_available", [])
+                    
+                    # Check if this matches an available tool
+                    for tool in tools_available:
+                        if potential_tool in tool.lower():
+                            decision = AgentDecision(
+                                agent_name=agent_name,
+                                action_type="use_tool",
+                                tool_name=tool,
+                                content=content,
+                                reasoning=f"Agent implicitly indicated using tool: {tool}"
+                            )
+                            return decision
+            
             # Strategy 4: Use agent's role and context for default behavior
             workflow_type = context.get("workflow_type", "")
             
             if agent_role == "supervisor":
                 # Supervisor behavior depends on workflow pattern
-                if workflow_type == "supervisor":
+                if workflow_type == "supervisor" or workflow_type == "agentic":
                     # In supervisor-worker pattern, supervisors typically delegate first
                     workers = context.get("workers", [])
-                    if workers and not context.get("iteration", 0) > 0:
+                    if workers and context.get("iteration", 0) == 0:
                         # First iteration, likely wants to delegate
                         # Choose first worker as default if none is explicitly mentioned
                         decision = AgentDecision(
@@ -240,7 +266,7 @@ class AgentDecisionParser:
             
             elif agent_role == "worker" or agent_role == "spoke":
                 # Workers typically report back to supervisor
-                if workflow_type == "supervisor" or workflow_type == "hub_and_spoke":
+                if workflow_type == "supervisor" or workflow_type == "agentic" or workflow_type == "hub_and_spoke":
                     # Find the supervisor or hub agent
                     supervisor = None
                     for agent in context.get("available_agents", []):
