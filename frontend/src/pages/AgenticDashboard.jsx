@@ -118,10 +118,19 @@ const AgenticDashboard = () => {
       const allWorkflows = workflowsResponse || [];
       
       // Filter agentic workflows
-      const agentic = allWorkflows.filter(w => 
-        w.workflow_type === 'agentic' || 
-        (w.template_id && await isAgenticTemplate(w.template_id))
-      );
+      const agentic = [];
+      for (const workflow of allWorkflows) {
+        if (workflow.workflow_type === 'agentic') {
+          agentic.push(workflow);
+        } else if (workflow.template_id) {
+          // Check if template is agentic
+          const isAgentic = await isAgenticTemplate(workflow.template_id);
+          if (isAgentic) {
+            agentic.push(workflow);
+          }
+        }
+      }
+      
       setAgenticWorkflows(agentic);
       
       // Fetch recent executions
