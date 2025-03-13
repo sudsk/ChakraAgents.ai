@@ -1,7 +1,7 @@
 # ChakraAgents.ai
 
 <div align="center">
-  <img src="docs/assets/logo.png" alt="ChakraAgents.ai Logo" width="300"/>
+  <img src="docs/assets/chakra_agents_logo.svg" alt="ChakraAgents.ai Logo" width="300"/>
   <h3>Agentic AI as a Service</h3>
   <p>Create, test, and deploy powerful AI agent workflows with easy API integration</p>
   
