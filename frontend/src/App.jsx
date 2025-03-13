@@ -13,7 +13,7 @@ import Login from './pages/Login';
 import Settings from './pages/Settings';
 
 // Components
-import UpdatedSidebar from './components/UpdatedSidebar';
+import Sidebar from './components/Sidebar';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -57,7 +57,7 @@ const theme = extendTheme({
 
 // Updated Layout component that uses the agentic sidebar
 const AgenticLayout = () => {
-  return <Layout sidebar={<UpdatedSidebar />} />;
+  return <Layout sidebar={<Sidebar />} />;
 };
 
 function App() {
