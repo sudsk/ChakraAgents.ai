@@ -21,6 +21,8 @@ from app.db.models import Template, Workflow, WorkflowExecution, ExecutionLog
 from app.engine.tools.enhanced_rag_tool import EnhancedRAGTool
 from app.db.vector_store import VectorStoreManager
 from app.engine.langgraph_workflow_runner import LangGraphWorkflowRunner
+from app.engine.agent_prompt_creator import AgentPromptCreator
+from app.engine.agent_decision_parser import AgentDecisionParser
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,8 @@ class AgenticWorkflowEngine:
     
     def __init__(self):
         self.llm_provider = llm_provider_manager
-        self.rag_tool = EnhancedRAGTool(vector_store_manager=VectorStoreManager())
+        self.vector_store = VectorStoreManager()
+        self.rag_tool = EnhancedRAGTool(vector_store_manager=self.vector_store)
         
         # Register available tools
         self.available_tools = {
@@ -65,13 +68,14 @@ class AgenticWorkflowEngine:
             os.makedirs(checkpoint_dir, exist_ok=True)
             
             # Create LangGraph workflow runner with agentic capabilities
+            execution_id = str(uuid.uuid4())
             workflow_runner = LangGraphWorkflowRunner(template, workflow)
             
             # Execute the workflow using LangGraph
             logger.info(f"Starting agentic workflow execution for {workflow_type}")
             
             # Execute the workflow
-            result = await workflow_runner.execute(input_data)
+            result = await workflow_runner.execute(input_data, execution_id=execution_id)
             
             # Calculate execution time
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -79,6 +83,7 @@ class AgenticWorkflowEngine:
             
             # Add execution time to the result
             result["execution_time"] = execution_time
+            result["success"] = True
             
             return result
             
@@ -106,13 +111,13 @@ class AgenticWorkflowEngine:
         return merged
     
     # Tool implementations
-    def _web_search_tool(self, query: str) -> str:
+    async def _web_search_tool(self, query: str) -> str:
         """Simple web search tool implementation"""
         logger.info(f"Executing web search for: {query}")
         # In a real implementation, this would call a search API
         return f"Web search results for: {query}\n- Result 1\n- Result 2\n- Result 3"
     
-    def _code_execution_tool(self, code: str) -> str:
+    async def _code_execution_tool(self, code: str) -> str:
         """Execute Python code and return the result"""
         logger.info(f"Executing code: {code[:100]}...")
         try:
@@ -122,7 +127,7 @@ class AgenticWorkflowEngine:
         except Exception as e:
             return f"Error executing code: {str(e)}"
     
-    def _data_analysis_tool(self, data_source: str, analysis_type: str) -> str:
+    async def _data_analysis_tool(self, data_source: str, analysis_type: str) -> str:
         """Analyze data and return the result"""
         logger.info(f"Analyzing data from {data_source} using {analysis_type}")
         # In a real implementation, this would use pandas/numpy
@@ -148,3 +153,71 @@ class AgenticWorkflowEngine:
             "version": version,
             "status": "active"
         }
+
+    async def validate_workflow(self, workflow_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate a workflow configuration for agentic capabilities
+        
+        Args:
+            workflow_config: The workflow configuration to validate
+            
+        Returns:
+            Dictionary with validation results
+        """
+        try:
+            # Check for required components
+            if not workflow_config.get("supervisor"):
+                return {
+                    "valid": False,
+                    "message": "Supervisor agent is required for agentic workflows"
+                }
+            
+            supervisor = workflow_config.get("supervisor", {})
+            if not supervisor.get("name") or not supervisor.get("model_provider") or not supervisor.get("model_name"):
+                return {
+                    "valid": False,
+                    "message": "Supervisor agent requires name, model_provider, and model_name"
+                }
+            
+            # Check worker agents if present
+            workers = workflow_config.get("workers", [])
+            for i, worker in enumerate(workers):
+                if not worker.get("name") or not worker.get("model_provider") or not worker.get("model_name"):
+                    return {
+                        "valid": False,
+                        "message": f"Worker agent at index {i} requires name, model_provider, and model_name"
+                    }
+            
+            # Validate execution graph if present
+            execution_graph = workflow_config.get("execution_graph", {})
+            all_agents = [supervisor.get("name")] + [worker.get("name") for worker in workers]
+            
+            for source, targets in execution_graph.items():
+                if source not in all_agents:
+                    return {
+                        "valid": False,
+                        "message": f"Agent '{source}' in execution graph does not exist"
+                    }
+                
+                for target in targets:
+                    if target not in all_agents:
+                        return {
+                            "valid": False,
+                            "message": f"Target agent '{target}' in execution graph does not exist"
+                        }
+            
+            # Enhance the configuration with agentic capabilities
+            enhanced_config = workflow_config.copy()
+            enhanced_config = AgentPromptCreator.enhance_template_with_agentic_capabilities(enhanced_config)
+            
+            return {
+                "valid": True,
+                "message": "Configuration is valid",
+                "enhanced_config": enhanced_config
+            }
+        except Exception as e:
+            logger.exception(f"Error validating workflow: {str(e)}")
+            return {
+                "valid": False,
+                "message": f"Validation error: {str(e)}"
+            }
