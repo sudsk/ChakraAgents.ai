@@ -47,10 +47,22 @@ import {
   Spinner
 } from '@chakra-ui/react';
 import { 
-  FiSave, FiPlus, FiTrash2, FiArrowLeft, FiPlay, FiCpu, FiList, 
-  FiTool, FiSettings, FiDatabase, FiMessageCircle, FiInfo, FiShare2
+  FiSave, 
+  FiPlus, 
+  FiTrash2, 
+  FiArrowLeft, 
+  FiPlay, 
+  FiCpu, 
+  FiList, 
+  FiTool, 
+  FiSettings, 
+  FiDatabase, 
+  FiMessageCircle, 
+  FiInfo, 
+  FiShare2 
 } from 'react-icons/fi';
 import apiClient from '../services/api';
+import agenticApiService from '../services/agenticApi';
 
 // Agent configuration form with agentic capabilities
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
@@ -58,6 +70,335 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
     onChange({ ...agent, [field]: value });
   };
 
+export default AgenticWorkflowCreator;
+  
+  // Add new agent
+  const addNewAgent = () => {
+    const newAgent = {
+      name: `agent_${Date.now().toString(36)}`,
+      role: 'worker',
+      model_provider: 'vertex_ai',
+      model_name: 'gemini-1.5-flash',
+      prompt_template: 'You are a specialized agent.\n\nTask: {input}\n\n{make_decision}',
+      system_message: 'You are a specialized agent that works as part of a team. You can use tools and communicate with other agents to solve complex tasks.',
+      temperature: 0.7,
+      can_delegate: true,
+      can_use_tools: true,
+      can_finalize: false,
+      autonomous_decisions: true,
+      agentic_system_message: true
+    };
+    
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workers: [...(workflow.config.workers || []), newAgent]
+      }
+    });
+  };
+  
+  // Delete agent
+  const deleteAgent = (index) => {
+    const updatedWorkers = [...(workflow.config.workers || [])];
+    updatedWorkers.splice(index, 1);
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workers: updatedWorkers
+      }
+    });
+  };
+  
+  // Handle tool changes
+  const handleToolChange = (index, updatedTool) => {
+    const updatedTools = [...(workflow.config.tools || [])];
+    updatedTools[index] = updatedTool;
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: updatedTools
+      }
+    });
+  };
+  
+  // Add new tool
+  const addNewTool = () => {
+    const newTool = {
+      name: `tool_${Date.now().toString(36)}`,
+      description: 'Description of what this tool does',
+      function_name: 'function_name',
+      parameters: {
+        "param1": {
+          "type": "string",
+          "description": "Parameter description"
+        }
+      },
+      requires_confirmation: false,
+      always_available: true
+    };
+    
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: [...(workflow.config.tools || []), newTool]
+      }
+    });
+  };
+  
+  // Delete tool
+  const deleteTool = (index) => {
+    const updatedTools = [...(workflow.config.tools || [])];
+    updatedTools.splice(index, 1);
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: updatedTools
+      }
+    });
+  };
+  
+  // Update workflow config
+  const handleWorkflowConfigChange = (field, value) => {
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workflow_config: {
+          ...(workflow.config.workflow_config || {}),
+          [field]: value
+        }
+      }
+    });
+  };
+  
+  // Update execution graph
+  const handleExecutionGraphChange = (newGraph) => {
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        execution_graph: newGraph
+      }
+    });
+  };
+  
+  // Import from template
+  const handleImportFromTemplate = async (templateId) => {
+    if (!templateId) return;
+    
+    try {
+      // Fetch template details
+      const template = await apiClient.get(`/api/templates/${templateId}`);
+      
+      // Extract agents and tools from template
+      const config = {
+        ...workflow.config,
+        workflow_config: {
+          ...(workflow.config.workflow_config || {}),
+          ...template.config.workflow_config
+        }
+      };
+      
+      // Copy supervisor if exists
+      if (template.config.supervisor) {
+        config.supervisor = {
+          ...template.config.supervisor,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: true,
+          autonomous_decisions: true
+        };
+      }
+      
+      // Copy workers if exist
+      if (template.config.workers && template.config.workers.length > 0) {
+        config.workers = template.config.workers.map(worker => ({
+          ...worker,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: false,
+          autonomous_decisions: true
+        }));
+      }
+      
+      // Copy agents if swarm type
+      if (template.config.agents && template.config.agents.length > 0) {
+        // Convert swarm agents to supervisor/worker setup
+        const firstAgent = template.config.agents[0];
+        config.supervisor = {
+          ...firstAgent,
+          name: 'supervisor',
+          role: 'supervisor',
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: true,
+          autonomous_decisions: true
+        };
+        
+        config.workers = template.config.agents.slice(1).map(agent => ({
+          ...agent,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: false,
+          autonomous_decisions: true
+        }));
+      }
+      
+      // Copy tools
+      if (template.config.tools && template.config.tools.length > 0) {
+        config.tools = template.config.tools.map(tool => ({
+          ...tool,
+          requires_confirmation: false,
+          always_available: true
+        }));
+      }
+      
+      // Update workflow
+      setWorkflow({
+        ...workflow,
+        template_id: templateId,
+        config
+      });
+      
+      toast({
+        title: 'Template Imported',
+        description: 'Template configuration has been applied',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error importing template:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to import template',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Test workflow with validation
+  const testWorkflow = async () => {
+    try {
+      // Validate configuration using the agentic API
+      const validationResult = await agenticApiService.validateWorkflow(workflow.config);
+      
+      if (validationResult.valid) {
+        toast({
+          title: 'Workflow Validation Successful',
+          description: validationResult.message || 'The workflow configuration is valid',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // Set enhanced config if provided
+        if (validationResult.enhanced_config) {
+          setWorkflow(prev => ({
+            ...prev,
+            config: validationResult.enhanced_config
+          }));
+        }
+      } else {
+        toast({
+          title: 'Workflow Validation Failed',
+          description: validationResult.message || 'The workflow configuration is invalid',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error validating workflow:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to validate workflow',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Save workflow
+  const saveWorkflow = async () => {
+    // Validate fields
+    if (!workflow.name) {
+      toast({
+        title: 'Validation Error',
+        description: 'Workflow name is required',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    if (!workflow.config.supervisor) {
+      toast({
+        title: 'Validation Error',
+        description: 'Supervisor agent is required',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    setSaving(true);
+    
+    try {
+      let savedWorkflow;
+      
+      if (id) {
+        // Update existing workflow
+        savedWorkflow = await apiClient.put(`/api/workflows/${id}`, {
+          ...workflow,
+          workflow_type: 'agentic', // Ensure workflow type is agentic
+        });
+      } else {
+        // Create new workflow
+        savedWorkflow = await apiClient.post('/api/workflows', {
+          ...workflow,
+          workflow_type: 'agentic', // Ensure workflow type is agentic
+        });
+      }
+      
+      toast({
+        title: 'Success',
+        description: `Workflow ${id ? 'updated' : 'created'} successfully`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Navigate to workflow list
+      navigate('/workflows');
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save workflow',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  
   // Get list of all agent names (for execution graph)
   const getAgentNames = () => {
     const names = [];
@@ -76,6 +417,14 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
     
     return names;
   };
+  
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" height="500px" width="100%">
+        <Spinner size="xl" color="brand.500" />
+      </Flex>
+    );
+  }
   
   return (
     <Box>
@@ -139,7 +488,7 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
               <FormControl mb={4}>
                 <FormLabel>Import from Template (Optional)</FormLabel>
                 <Select
-                  value={workflow.template_id}
+                  value={workflow.template_id || ''}
                   onChange={(e) => handleImportFromTemplate(e.target.value)}
                   placeholder="Select template to import configuration"
                 >
@@ -159,10 +508,10 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
           {/* Workflow details tabs */}
           <Tabs colorScheme="brand" isLazy>
             <TabList>
-              <Tab><Icon as={FiCpu} mr={2} /> Agents</Tab>
-              <Tab><Icon as={FiTool} mr={2} /> Tools</Tab>
-              <Tab><Icon as={FiShare2} mr={2} /> Flow</Tab>
-              <Tab><Icon as={FiSettings} mr={2} /> Settings</Tab>
+              <Tab><Box as={FiCpu} mr={2} /> Agents</Tab>
+              <Tab><Box as={FiTool} mr={2} /> Tools</Tab>
+              <Tab><Box as={FiShare2} mr={2} /> Flow</Tab>
+              <Tab><Box as={FiSettings} mr={2} /> Settings</Tab>
             </TabList>
             
             <TabPanels>
@@ -444,6 +793,9 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
       </SimpleGrid>
     </Box>
   );
+};
+
+  return (
     <Card mb={4} borderWidth="1px" borderColor="gray.200">
       <CardBody>
         <Flex justify="space-between" align="center" mb={4}>
@@ -918,20 +1270,26 @@ const ToolConfigForm = ({ tool, onChange, onDelete, isNew }) => {
 };
 
 // Workflow execution graph editor
-const ExecutionGraphEditor = ({ graph, onChange }) => {
+const ExecutionGraphEditor = ({ graph, onChange, availableAgents = [] }) => {
   const [editing, setEditing] = useState(false);
   const [connectionFrom, setConnectionFrom] = useState(null);
-  const [availableAgents, setAvailableAgents] = useState([]);
+  const [connectionTo, setConnectionTo] = useState(null);
   
-  const handleAddConnection = (from, to) => {
+  const handleAddConnection = () => {
+    if (!connectionFrom || !connectionTo) return;
+    
     const newGraph = { ...graph };
-    if (!newGraph[from]) {
-      newGraph[from] = [];
+    if (!newGraph[connectionFrom]) {
+      newGraph[connectionFrom] = [];
     }
-    if (!newGraph[from].includes(to)) {
-      newGraph[from] = [...newGraph[from], to];
+    
+    if (!newGraph[connectionFrom].includes(connectionTo)) {
+      newGraph[connectionFrom] = [...newGraph[connectionFrom], connectionTo];
+      onChange(newGraph);
     }
-    onChange(newGraph);
+    
+    // Reset the selection
+    setConnectionTo(null);
   };
   
   const handleRemoveConnection = (from, to) => {
@@ -946,7 +1304,45 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
     onChange(newGraph);
   };
   
-  // Render the graph as a simple adjacency list UI
+  // Check if the graph has cycles
+  const hasCycle = (graph) => {
+    const visited = new Set();
+    const recStack = new Set();
+    
+    const dfs = (node) => {
+      visited.add(node);
+      recStack.add(node);
+      
+      // Visit neighbors
+      if (graph[node]) {
+        for (const neighbor of graph[node]) {
+          if (!visited.has(neighbor)) {
+            if (dfs(neighbor)) {
+              return true;
+            }
+          } else if (recStack.has(neighbor)) {
+            return true;
+          }
+        }
+      }
+      
+      // Remove from recursion stack
+      recStack.delete(node);
+      return false;
+    };
+    
+    // Check each node
+    for (const node in graph) {
+      if (!visited.has(node)) {
+        if (dfs(node)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  };
+  
   return (
     <Card mb={4}>
       <CardHeader>
@@ -954,7 +1350,7 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
           <Heading size="md">Execution Graph (Optional)</Heading>
           <Button
             size="sm"
-            leftIcon={editing ? <FiCheck /> : <FiEdit />}
+            leftIcon={editing ? <FiSave /> : <FiEdit />}
             onClick={() => setEditing(!editing)}
             colorScheme={editing ? "green" : "gray"}
           >
@@ -966,6 +1362,19 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
         <Text mb={4} fontSize="sm">
           Define which agents can delegate to which other agents. If left empty, all agents can potentially delegate to any other agent based on their decisions.
         </Text>
+        
+        {hasCycle(graph) && (
+          <Alert status="warning" mb={4}>
+            <AlertIcon />
+            <Box>
+              <Text fontWeight="bold">Circular reference detected</Text>
+              <Text fontSize="sm">
+                Your execution graph contains cycles, which could lead to infinite loops. 
+                Consider removing circular references.
+              </Text>
+            </Box>
+          </Alert>
+        )}
         
         {Object.keys(graph).length > 0 ? (
           <Box>
@@ -1011,7 +1420,7 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
             borderStyle="dashed" 
             borderRadius="md"
           >
-            <Icon as={FiShare2} fontSize="3xl" color="gray.400" mb={3} />
+            <Box as={FiShare2} fontSize="3xl" color="gray.400" mb={3} />
             <Text color="gray.500" mb={2}>No execution graph defined</Text>
             <Text fontSize="sm" color="gray.500">
               Agents will make autonomous routing decisions at runtime
@@ -1028,8 +1437,7 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
                 value={connectionFrom}
                 onChange={(e) => setConnectionFrom(e.target.value)}
               >
-                <option value="supervisor">supervisor</option>
-                {availableAgents.filter(a => a !== "supervisor").map(agent => (
+                {availableAgents.map(agent => (
                   <option key={agent} value={agent}>{agent}</option>
                 ))}
               </Select>
@@ -1039,17 +1447,19 @@ const ExecutionGraphEditor = ({ graph, onChange }) => {
                   placeholder="To agent..." 
                   mr={2}
                   isDisabled={!connectionFrom}
+                  value={connectionTo}
+                  onChange={(e) => setConnectionTo(e.target.value)}
                 >
-                  {availableAgents.filter(a => a !== connectionFrom).map(agent => (
-                    <option key={agent} value={agent}>{agent}</option>
-                  ))}
+                  {availableAgents
+                    .filter(agent => agent !== connectionFrom)
+                    .map(agent => (
+                      <option key={agent} value={agent}>{agent}</option>
+                    ))}
                 </Select>
                 <Button 
                   colorScheme="purple" 
-                  isDisabled={!connectionFrom}
-                  onClick={() => {
-                    // Add connection logic here
-                  }}
+                  isDisabled={!connectionFrom || !connectionTo}
+                  onClick={handleAddConnection}
                 >
                   Add
                 </Button>
@@ -1083,7 +1493,8 @@ const AgenticWorkflowCreator = () => {
       workflow_config: {
         max_iterations: 5,
         checkpoint_dir: './checkpoints',
-        enable_logging: true
+        enable_logging: true,
+        decision_format: 'hybrid'
       }
     }
   });
@@ -1119,7 +1530,7 @@ const AgenticWorkflowCreator = () => {
         
         // Fetch templates for selection
         const templatesData = await apiClient.get('/api/templates');
-        setTemplates(templatesData);
+        setTemplates(templatesData || []);
         
         if (id) {
           // Fetch existing workflow
@@ -1131,7 +1542,7 @@ const AgenticWorkflowCreator = () => {
             description: workflowData.description || '',
             template_id: workflowData.template_id,
             workflow_type: 'agentic', // Force agentic type
-            config: workflowData.config
+            config: workflowData.config || {}
           });
         } else {
           // Initialize with default supervisor agent for new workflows
@@ -1199,7 +1610,7 @@ const AgenticWorkflowCreator = () => {
       });
     } else {
       // Update worker
-      const updatedWorkers = [...workflow.config.workers];
+      const updatedWorkers = [...(workflow.config.workers || [])];
       updatedWorkers[index] = updatedAgent;
       setWorkflow({
         ...workflow,
@@ -1208,278 +1619,5 @@ const AgenticWorkflowCreator = () => {
           workers: updatedWorkers
         }
       });
-    }
-  };
-  
-  // Add new agent
-  const addNewAgent = () => {
-    const newAgent = {
-      name: `agent_${Date.now().toString(36)}`,
-      role: 'worker',
-      model_provider: 'vertex_ai',
-      model_name: 'gemini-1.5-flash',
-      prompt_template: 'You are a specialized agent.\n\nTask: {input}\n\n{make_decision}',
-      system_message: 'You are a specialized agent that works as part of a team. You can use tools and communicate with other agents to solve complex tasks.',
-      temperature: 0.7,
-      can_delegate: true,
-      can_use_tools: true,
-      can_finalize: false,
-      autonomous_decisions: true,
-      agentic_system_message: true
-    };
-    
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workers: [...(workflow.config.workers || []), newAgent]
-      }
-    });
-  };
-  
-  // Delete agent
-  const deleteAgent = (index) => {
-    const updatedWorkers = [...workflow.config.workers];
-    updatedWorkers.splice(index, 1);
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workers: updatedWorkers
-      }
-    });
-  };
-  
-  // Handle tool changes
-  const handleToolChange = (index, updatedTool) => {
-    const updatedTools = [...(workflow.config.tools || [])];
-    updatedTools[index] = updatedTool;
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: updatedTools
-      }
-    });
-  };
-  
-  // Add new tool
-  const addNewTool = () => {
-    const newTool = {
-      name: `tool_${Date.now().toString(36)}`,
-      description: 'Description of what this tool does',
-      function_name: 'function_name',
-      parameters: {
-        "param1": {
-          "type": "string",
-          "description": "Parameter description"
-        }
-      },
-      requires_confirmation: false,
-      always_available: true
-    };
-    
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: [...(workflow.config.tools || []), newTool]
-      }
-    });
-  };
-  
-  // Delete tool
-  const deleteTool = (index) => {
-    const updatedTools = [...workflow.config.tools];
-    updatedTools.splice(index, 1);
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: updatedTools
-      }
-    });
-  };
-  
-  // Update workflow config
-  const handleWorkflowConfigChange = (field, value) => {
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workflow_config: {
-          ...(workflow.config.workflow_config || {}),
-          [field]: value
-        }
-      }
-    });
-  };
-  
-  // Import from template
-  const handleImportFromTemplate = async (templateId) => {
-    if (!templateId) return;
-    
-    try {
-      // Fetch template details
-      const template = await apiClient.get(`/api/templates/${templateId}`);
-      
-      // Extract agents and tools from template
-      const config = {
-        ...workflow.config,
-        workflow_config: {
-          ...(workflow.config.workflow_config || {}),
-          ...template.config.workflow_config
-        }
-      };
-      
-      // Copy supervisor if exists
-      if (template.config.supervisor) {
-        config.supervisor = {
-          ...template.config.supervisor,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: true,
-          autonomous_decisions: true
-        };
-      }
-      
-      // Copy workers if exist
-      if (template.config.workers && template.config.workers.length > 0) {
-        config.workers = template.config.workers.map(worker => ({
-          ...worker,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: false,
-          autonomous_decisions: true
-        }));
-      }
-      
-      // Copy agents if swarm type
-      if (template.config.agents && template.config.agents.length > 0) {
-        // Convert swarm agents to supervisor/worker setup
-        const firstAgent = template.config.agents[0];
-        config.supervisor = {
-          ...firstAgent,
-          name: 'supervisor',
-          role: 'supervisor',
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: true,
-          autonomous_decisions: true
-        };
-        
-        config.workers = template.config.agents.slice(1).map(agent => ({
-          ...agent,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: false,
-          autonomous_decisions: true
-        }));
-      }
-      
-      // Copy tools
-      if (template.config.tools && template.config.tools.length > 0) {
-        config.tools = template.config.tools.map(tool => ({
-          ...tool,
-          requires_confirmation: false,
-          always_available: true
-        }));
-      }
-      
-      // Update workflow
-      setWorkflow({
-        ...workflow,
-        template_id: templateId,
-        config
-      });
-      
-      toast({
-        title: 'Template Imported',
-        description: 'Template configuration has been applied',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Error importing template:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to import template',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-  
-  // Save workflow
-  const saveWorkflow = async () => {
-    // Validate fields
-    if (!workflow.name) {
-      toast({
-        title: 'Validation Error',
-        description: 'Workflow name is required',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    if (!workflow.config.supervisor) {
-      toast({
-        title: 'Validation Error',
-        description: 'Supervisor agent is required',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    setSaving(true);
-    
-    try {
-      let savedWorkflow;
-      
-      if (id) {
-        // Update existing workflow
-        savedWorkflow = await apiClient.put(`/api/workflows/${id}`, {
-          ...workflow,
-          workflow_type: 'agentic', // Ensure workflow type is agentic
-        });
-      } else {
-        // Create new workflow
-        savedWorkflow = await apiClient.post('/api/workflows', {
-          ...workflow,
-          workflow_type: 'agentic', // Ensure workflow type is agentic
-        });
-      }
-      
-      toast({
-        title: 'Success',
-        description: `Workflow ${id ? 'updated' : 'created'} successfully`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // Navigate to workflow execution or workflows list
-      navigate('/workflows');
-    } catch (error) {
-      console.error('Error saving workflow:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to save workflow',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setSaving(false);
     }
   };
