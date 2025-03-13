@@ -67,7 +67,7 @@ A knowledge-enhanced agent that can analyze and reason about your private data.
 ChakraAgents.ai consists of:
 
 <div align="center">
-  <img src="docs/assets/system-architecture.png" alt="System Architecture" width="700"/>
+  <img src="docs/assets/system-architecture.svg" alt="System Architecture" width="700"/>
 </div>
 
 1. **Frontend**: React application with Chakra UI components
