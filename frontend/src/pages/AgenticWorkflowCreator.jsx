@@ -1,4 +1,6 @@
 // frontend/src/pages/AgenticWorkflowCreator.jsx
+import apiClient from '../services/api';
+import agenticApiService from '../services/agenticApi';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -61,8 +63,6 @@ import {
   FiInfo, 
   FiShare2 
 } from 'react-icons/fi';
-import apiClient from '../services/api';
-import agenticApiService from '../services/agenticApi';
 
 // Agent configuration form with agentic capabilities
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
@@ -70,8 +70,7 @@ const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOpt
     onChange({ ...agent, [field]: value });
   };
 
-export default AgenticWorkflowCreator;
-  
+
   // Add new agent
   const addNewAgent = () => {
     const newAgent = {
@@ -1621,3 +1620,5 @@ const AgenticWorkflowCreator = () => {
       });
     }
   };
+
+  export default AgenticWorkflowCreator;
