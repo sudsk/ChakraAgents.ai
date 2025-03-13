@@ -52,7 +52,8 @@ import {
   Spinner,
   useDisclosure,
   useToast,
-  useColorModeValue
+  useColorModeValue,
+  Divider
 } from '@chakra-ui/react';
 import { 
   FiPlus, 
