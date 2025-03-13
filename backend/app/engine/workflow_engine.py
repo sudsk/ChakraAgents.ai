@@ -1,14 +1,14 @@
-# backend/app/engine/workflow_engine.py
+# app/engine/core/workflow_engine.py
 import logging
 import json
 import asyncio
 import os
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 import uuid
 from pathlib import Path
 
-from app.engine.llm_providers import llm_provider_manager
+from app.engine.providers.llm_provider_manager import llm_provider_manager
 from app.core.config import settings
 from app.db.models import Template, Workflow, WorkflowExecution, ExecutionLog
 from app.engine.tools.rag_tool import RAGTool
@@ -17,7 +17,7 @@ from app.db.vector_store import VectorStoreManager
 logger = logging.getLogger(__name__)
 
 class WorkflowEngine:
-    """Engine for executing workflows based on templates"""
+    """Base engine for executing all types of workflows based on templates"""
     
     def __init__(self):
         self.llm_provider = llm_provider_manager
@@ -26,9 +26,74 @@ class WorkflowEngine:
             "retrieve_information": self.rag_tool.retrieve_information
         }   
 
+    async def execute_workflow(self, template: Template, workflow: Workflow, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a workflow with the given input data using its template"""
+        logger.info(f"Executing workflow: {workflow.name} (ID: {workflow.id})")
+        
+        start_time = datetime.now()
+        
+        try:
+            # Extract configuration from template and workflow
+            workflow_type = template.workflow_type
+            template_config = template.config
+            workflow_config = workflow.config
+            
+            # Merge template and workflow configs, with workflow config taking precedence
+            merged_config = self._merge_configs(template_config, workflow_config)      
+
+            # Create checkpoint directory if needed
+            checkpoint_dir = merged_config.get("workflow_config", {}).get("checkpoint_dir", settings.CHECKPOINT_DIR)
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            
+            # Execute based on workflow type
+            if workflow_type == "rag":
+                # Special workflow type for RAG-only flows
+                query = input_data.get("query", "")
+                if not query:
+                    raise ValueError("No query provided in input data for RAG workflow")
+                result = await self.execute_rag_workflow(query, merged_config)
+            elif workflow_type == "supervisor":
+                result = await self.execute_supervisor_workflow(merged_config, input_data)
+            elif workflow_type == "swarm":
+                result = await self.execute_swarm_workflow(merged_config, input_data)
+            else:
+                raise ValueError(f"Unsupported workflow type: {workflow_type}")
+            
+            execution_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Workflow execution completed in {execution_time:.2f} seconds")
+            
+            return {
+                "success": True,
+                "execution_time": execution_time,
+                **result
+            }
+            
+        except Exception as e:
+            logger.exception(f"Error executing workflow: {str(e)}")
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "execution_time": execution_time
+            }
+
+    def _merge_configs(self, template_config: Dict[str, Any], workflow_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge template and workflow configurations, with workflow config taking precedence"""
+        merged = template_config.copy()
+        
+        # Deep merge the configs
+        for key, value in workflow_config.items():
+            if isinstance(value, dict) and key in merged and isinstance(merged[key], dict):
+                merged[key] = self._merge_configs(merged[key], value)
+            else:
+                merged[key] = value
+                
+        return merged
+        
     async def execute_rag_workflow(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a simple RAG workflow without complex agent interactions"""
-        logger.info("Executing dedicated RAG workflow")
+        logger.info("Executing RAG workflow")
         
         try:
             # Get configuration for RAG workflow
@@ -77,72 +142,9 @@ Context:
             return {
                 "success": False,
                 "error": str(e)
-            }    
+            }
     
-    async def execute_workflow(self, template: Template, workflow: Workflow, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a workflow with the given input data using its template"""
-        logger.info(f"Executing workflow: {workflow.name} (ID: {workflow.id})")
-        
-        start_time = datetime.now()
-        
-        try:
-            # Extract configuration from template and workflow
-            workflow_type = template.workflow_type
-            template_config = template.config
-            workflow_config = workflow.config
-            
-            # Merge template and workflow configs, with workflow config taking precedence
-            merged_config = self._merge_configs(template_config, workflow_config)      
-
-            # Create checkpoint directory if needed
-            checkpoint_dir = merged_config.get("workflow_config", {}).get("checkpoint_dir", settings.CHECKPOINT_DIR)
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            
-            # Execute based on workflow type
-            if workflow_type == "rag":
-                # Special workflow type for RAG-only flows without complex agent interactions
-                query = input_data.get("query", "")
-                if not query:
-                    raise ValueError("No query provided in input data for RAG workflow")
-                result = await self.execute_rag_workflow(query, merged_config)
-            elif workflow_type == "supervisor":
-                result = await self._execute_supervisor_workflow(merged_config, input_data)
-            else:  # swarm
-                result = await self._execute_swarm_workflow(merged_config, input_data)
-            
-            execution_time = (datetime.now() - start_time).total_seconds()
-            logger.info(f"Workflow execution completed in {execution_time:.2f} seconds")
-            
-            return {
-                "success": True,
-                "execution_time": execution_time,               
-                **result
-            }
-            
-        except Exception as e:
-            logger.exception(f"Error executing workflow: {str(e)}")
-            execution_time = (datetime.now() - start_time).total_seconds()
-            
-            return {
-                "success": False,
-                "error": str(e),
-                "execution_time": execution_time
-            }
-
-    def _merge_configs(self, template_config: Dict[str, Any], workflow_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge template and workflow configurations, with workflow config taking precedence"""
-        merged = template_config.copy()
-        
-        # Deep merge the configs
-        for key, value in workflow_config.items():
-            if isinstance(value, dict) and key in merged and isinstance(merged[key], dict):
-                merged[key] = self._merge_configs(merged[key], value)
-            else:
-                merged[key] = value
-                
-        return merged
-        
-    async def _execute_supervisor_workflow(self, config: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_supervisor_workflow(self, config: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a supervisor-worker type workflow"""
         logger.info("Executing supervisor workflow")
         
@@ -302,7 +304,7 @@ Context:
             "iterations": current_iteration
         }        
     
-    async def _execute_swarm_workflow(self, config: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_swarm_workflow(self, config: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a swarm type workflow"""
         logger.info("Executing swarm workflow")
         
@@ -573,20 +575,28 @@ Context:
             logger.error(f"Error executing tool {tool_name}: {str(e)}")
             return f"Error executing tool {tool_name}: {str(e)}"
             
-    async def process_with_rag(self, query: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a query using RAG capabilities"""
-        model_provider = config.get("model_provider", "vertex_ai")
-        model_name = config.get("model_name", "gemini-1.5-pro")
-        system_message = config.get("system_message", "")
-        temperature = config.get("temperature", 0.3)
-        num_results = config.get("num_results", 5)
+    def register_tool(self, name: str, func):
+        """Register a new tool function"""
+        self.registered_tools[name] = func
+        logger.info(f"Registered tool: {name}")
+    
+    async def deploy_as_api(self, workflow_id: str, version: str = "v1") -> Dict[str, Any]:
+        """Deploy a workflow as an API endpoint"""
+        logger.info(f"Deploying workflow {workflow_id} as API endpoint")
         
-        return await self.rag_tool.process_with_rag(
-            query=query,
-            llm_provider=self.llm_provider,
-            model_provider=model_provider,
-            model_name=model_name,
-            temperature=temperature,
-            num_results=num_results,
-            system_message=system_message
-        )
+        # This would be implemented to:
+        # 1. Generate a unique API key
+        # 2. Register the endpoint in the API gateway
+        # 3. Create a deployment record
+        # 4. Return the endpoint URL and API key
+        
+        # Simplified implementation for now
+        api_key = f"wf_{uuid.uuid4().hex[:16]}"
+        endpoint_url = f"/api/{version}/workflows/{workflow_id}/execute"
+        
+        return {
+            "api_key": api_key,
+            "endpoint_url": endpoint_url,
+            "version": version,
+            "status": "active"
+        }
