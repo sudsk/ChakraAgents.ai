@@ -7,6 +7,7 @@ from langchain_openai import OpenAIEmbeddings
 # Add this for fallback embeddings
 from langchain_core.embeddings import Embeddings
 import numpy as np
+import os
 
 # Create a mock embeddings class that doesn't need external services
 class MockEmbeddings(Embeddings):
@@ -48,20 +49,34 @@ class VectorStoreManager:
             # Use mock embeddings as the fallback
             self.embeddings = MockEmbeddings()
         
-        # Initialize vector store
-        self.vector_store = FAISS.from_documents([], self.embeddings)
+        # Initialize vector store lazily - don't create it until we have documents
+        self.vector_store = None
     
     def add_documents(self, documents):
         """Add documents to the vector store"""
-        self.vector_store.add_documents(documents)
+        if not documents:
+            return
+            
+        if self.vector_store is None:
+            # First time adding documents, create the store
+            self.vector_store = FAISS.from_documents(documents, self.embeddings)
+        else:
+            # Add to existing store
+            self.vector_store.add_documents(documents)
     
     def similarity_search(self, query, k=5):
         """Retrieve relevant documents based on query"""
+        if self.vector_store is None:
+            # If no documents have been added yet, return empty list
+            return []
         return self.vector_store.similarity_search(query, k=k)
     
     # If you have an async version, also update it
     async def async_similarity_search(self, query, k=5, **kwargs):
         """Async version of similarity search (actually just synchronous for now)"""
+        if self.vector_store is None:
+            # If no documents have been added yet, return empty list
+            return []
         return self.vector_store.similarity_search(query, k=k, **kwargs)
 
 
