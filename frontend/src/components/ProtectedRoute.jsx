@@ -1,10 +1,14 @@
 // src/components/ProtectedRoute.jsx
+
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Flex, Spinner } from '@chakra-ui/react';
 import authService from '../services/auth';
 
 const ProtectedRoute = ({ children }) => {
+  // Bypass authentication check and always render children
+  return children;
+  // temporary
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const location = useLocation();
