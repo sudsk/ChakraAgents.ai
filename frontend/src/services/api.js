@@ -1,17 +1,16 @@
 // frontend/src/services/api.js
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-
 /**
- * Generic API client for making requests to the backend
+ * Base API service for handling requests to the backend
  */
 class ApiClient {
-  constructor(baseUrl = API_BASE_URL) {
+  constructor(baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000') {
     this.baseUrl = baseUrl;
   }
 
   /**
-   * Create request headers with authentication if available
+   * Generate headers for API requests, including auth token if available
+   * @returns {Object} Headers object
    */
   getHeaders() {
     const headers = {
@@ -29,12 +28,13 @@ class ApiClient {
 
   /**
    * Handle API responses and errors
+   * @param {Response} response - Fetch response object
+   * @returns {Promise<any>} Parsed response data
    */
   async handleResponse(response) {
     if (!response.ok) {
       // For 401 Unauthorized, redirect to login
       if (response.status === 401) {
-        // Clear auth data and redirect to login would go here
         localStorage.removeItem('auth_token');
         window.location.href = '/login';
         return;
@@ -62,6 +62,9 @@ class ApiClient {
 
   /**
    * Make a GET request to the API
+   * @param {string} endpoint - API endpoint
+   * @param {Object} queryParams - Query parameters
+   * @returns {Promise<any>} Response data
    */
   async get(endpoint, queryParams = {}) {
     // Build query string
@@ -79,6 +82,9 @@ class ApiClient {
 
   /**
    * Make a POST request to the API
+   * @param {string} endpoint - API endpoint
+   * @param {Object} data - Request data
+   * @returns {Promise<any>} Response data
    */
   async post(endpoint, data = {}) {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -92,6 +98,9 @@ class ApiClient {
 
   /**
    * Make a PUT request to the API
+   * @param {string} endpoint - API endpoint
+   * @param {Object} data - Request data
+   * @returns {Promise<any>} Response data
    */
   async put(endpoint, data = {}) {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -104,7 +113,25 @@ class ApiClient {
   }
 
   /**
+   * Make a PATCH request to the API
+   * @param {string} endpoint - API endpoint
+   * @param {Object} data - Request data
+   * @returns {Promise<any>} Response data
+   */
+  async patch(endpoint, data = {}) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    return this.handleResponse(response);
+  }
+
+  /**
    * Make a DELETE request to the API
+   * @param {string} endpoint - API endpoint
+   * @returns {Promise<any>} Response data
    */
   async delete(endpoint) {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -114,40 +141,112 @@ class ApiClient {
 
     return this.handleResponse(response);
   }
+
+  /**
+   * Upload a file to the API
+   * @param {string} endpoint - API endpoint
+   * @param {FormData} formData - Form data with files
+   * @returns {Promise<any>} Response data
+   */
+  async uploadFile(endpoint, formData) {
+    const headers = this.getHeaders();
+    // Remove Content-Type header to let the browser set it with the boundary
+    delete headers['Content-Type'];
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: headers,
+      body: formData,
+    });
+
+    return this.handleResponse(response);
+  }
 }
 
-// Create and export API service instances
+// Create singleton instance
 const apiClient = new ApiClient();
 
-// Templates API
-export const templatesApi = {
-  getAll: () => apiClient.get('/api/templates'),
-  getById: (id) => apiClient.get(`/api/templates/${id}`),
-  create: (data) => apiClient.post('/api/templates', data),
-  update: (id, data) => apiClient.put(`/api/templates/${id}`, data),
-  delete: (id) => apiClient.delete(`/api/templates/${id}`),
-};
-
-// Workflows API
+// Agentic Workflows API - only focused on agentic workflows
 export const workflowsApi = {
-  getAll: () => apiClient.get('/api/workflows'),
-  getById: (id) => apiClient.get(`/api/workflows/${id}`),
-  create: (data) => apiClient.post('/api/workflows', data),
-  update: (id, data) => apiClient.put(`/api/workflows/${id}`, data),
-  delete: (id) => apiClient.delete(`/api/workflows/${id}`),
+  // Get all agentic workflows
+  getAll: (params) => apiClient.get('/api/agentic/workflows', params),
+  
+  // Get a specific workflow
+  getById: (id) => apiClient.get(`/api/agentic/workflows/${id}`),
+  
+  // Create a new agentic workflow
+  create: (data) => apiClient.post('/api/agentic/workflows', data),
+  
+  // Update an existing workflow
+  update: (id, data) => apiClient.put(`/api/agentic/workflows/${id}`, data),
+  
+  // Delete a workflow
+  delete: (id) => apiClient.delete(`/api/agentic/workflows/${id}`),
+  
+  // Run a workflow
+  run: (id, data) => apiClient.post(`/api/agentic/workflows/${id}/run`, data),
 };
 
 // Executions API
 export const executionsApi = {
-  getAll: (limit = 10) => apiClient.get('/api/workflow-executions/recent', { limit }),
-  getById: (id) => apiClient.get(`/api/workflow-executions/${id}`),
-  create: (data) => apiClient.post('/api/workflow-executions', data),
+  // Get all workflow executions
+  getAll: (params) => apiClient.get('/api/agentic/executions', params),
+  
+  // Get a specific execution
+  getById: (id) => apiClient.get(`/api/agentic/executions/${id}`),
+  
+  // Cancel an execution
+  cancel: (id) => apiClient.post(`/api/agentic/executions/${id}/cancel`),
+  
+  // Get execution details like decisions, agent interactions
+  getDecisions: (id) => apiClient.get(`/api/agentic/executions/${id}/decisions`),
+  getGraph: (id) => apiClient.get(`/api/agentic/executions/${id}/graph`),
+  getInteractions: (id) => apiClient.get(`/api/agentic/executions/${id}/interactions`),
+};
+
+// Tools API
+export const toolsApi = {
+  // Get all tools
+  getAll: () => apiClient.get('/api/agentic/tools'),
+  
+  // Get a specific tool
+  getById: (id) => apiClient.get(`/api/agentic/tools/${id}`),
+  
+  // Create a new tool
+  create: (data) => apiClient.post('/api/agentic/tools', data),
+  
+  // Update a tool
+  update: (id, data) => apiClient.put(`/api/agentic/tools/${id}`, data),
+  
+  // Delete a tool
+  delete: (id) => apiClient.delete(`/api/agentic/tools/${id}`),
+  
+  // Test a tool
+  test: (name, params) => apiClient.post('/api/agentic/tools/test', { tool_name: name, parameters: params }),
+};
+
+// Knowledge Base API
+export const knowledgeApi = {
+  // Get all documents
+  getDocuments: (params) => apiClient.get('/api/knowledge/documents', params),
+  
+  // Upload a document
+  uploadDocument: (formData) => apiClient.uploadFile('/api/knowledge/documents/upload', formData),
+  
+  // Delete a document
+  deleteDocument: (id) => apiClient.delete(`/api/knowledge/documents/${id}`),
+  
+  // Reindex a document
+  reindexDocument: (id) => apiClient.post(`/api/knowledge/documents/${id}/reindex`),
+  
+  // Test knowledge retrieval
+  testRetrieval: (query, params) => apiClient.post('/api/knowledge/test', { query, ...params }),
 };
 
 // Settings API
 export const settingsApi = {
-  getAll: () => apiClient.get('/settings'),
-  update: (data) => apiClient.put('/settings', data),
+  get: () => apiClient.get('/api/settings'),
+  update: (data) => apiClient.put('/api/settings', data),
 };
 
 export default apiClient;
