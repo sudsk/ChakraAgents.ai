@@ -58,7 +58,6 @@ import {
   FiEdit
 } from 'react-icons/fi';
 import apiClient from '../services/api';
-import agenticApiService from '../services/agenticApi';
 
 // Agent configuration form with agentic capabilities
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
