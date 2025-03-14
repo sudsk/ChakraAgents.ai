@@ -1,4 +1,5 @@
 // frontend/src/components/Sidebar.jsx
+/* eslint-disable no-unused-vars */
 import React from 'react';
 import { Box, VStack, Heading, Icon, Flex, Text, Divider, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody, useBreakpointValue, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
