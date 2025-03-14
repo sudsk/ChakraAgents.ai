@@ -1,19 +1,23 @@
 // src/components/ProtectedRoute.jsx
-
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Flex, Spinner } from '@chakra-ui/react';
 import authService from '../services/auth';
 
 const ProtectedRoute = ({ children }) => {
-  // Bypass authentication check and always render children
-  return children;
-  // temporary
-  const [isChecking, setIsChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // When authService.bypassAuth is true, this component will immediately
+  // render children without checking authentication
+  
+  const [isChecking, setIsChecking] = useState(!authService.bypassAuth);
+  const [isAuthenticated, setIsAuthenticated] = useState(authService.bypassAuth);
   const location = useLocation();
 
   useEffect(() => {
+    // Skip checking if we're bypassing auth
+    if (authService.bypassAuth) {
+      return;
+    }
+    
     const checkAuth = async () => {
       try {
         const authStatus = await authService.checkAuthStatus();
