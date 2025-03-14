@@ -12,6 +12,10 @@ import AgenticToolsManager from './pages/AgenticToolsManager';
 import Login from './pages/Login';
 import Settings from './pages/Settings';
 
+// Template Pages
+import Templates from './pages/Templates';
+import TemplateEditor from './pages/TemplateEditor';
+
 // Components
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
