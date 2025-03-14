@@ -6,14 +6,36 @@ import apiClient from './api';
  */
 class AuthService {
   constructor() {
+    // DEVELOPMENT MODE: Set to false to enable real authentication
+    this.bypassAuth = true;
+    
     this.token = localStorage.getItem('auth_token');
     this.user = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    // For development, create a mock user and token if bypass is enabled
+    if (this.bypassAuth && !this.token) {
+      this.token = 'dev-token-bypassed-auth';
+      this.user = {
+        id: 'dev-user-1',
+        name: 'Development User',
+        email: 'dev@example.com',
+        role: 'admin'
+      };
+      
+      // Store in localStorage to persist across refreshes
+      localStorage.setItem('auth_token', this.token);
+      localStorage.setItem('user', JSON.stringify(this.user));
+    }
   }
 
   /**
    * Check if user is authenticated
    */
   isAuthenticated() {
+    // Always return true when auth is bypassed
+    if (this.bypassAuth) {
+      return true;
+    }
     return !!this.token;
   }
 
@@ -21,6 +43,10 @@ class AuthService {
    * Get current user information
    */
   getCurrentUser() {
+    // Return development user when auth is bypassed
+    if (this.bypassAuth) {
+      return this.user;
+    }
     return this.user;
   }
 
@@ -35,6 +61,11 @@ class AuthService {
    * Authenticate user with credentials
    */
   async login(email, password) {
+    // Auto-succeed login in bypass mode
+    if (this.bypassAuth) {
+      return true;
+    }
+    
     try {
       // Create URLSearchParams - this is the proper format for sending form data
       const formData = new URLSearchParams();
@@ -59,7 +90,6 @@ class AuthService {
       // Parse the successful response
       const data = await response.json();
             
-      
       if (data.access_token) {
         this.token = data.access_token;
         this.user = data.user;      
@@ -97,6 +127,11 @@ class AuthService {
    * Check authentication status and refresh if needed
    */
   async checkAuthStatus() {
+    // Always return true in bypass mode
+    if (this.bypassAuth) {
+      return true;
+    }
+    
     if (!this.isAuthenticated()) {
       return false;
     }
