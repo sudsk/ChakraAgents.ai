@@ -115,23 +115,7 @@ const AgenticDashboard = () => {
     try {
       // Fetch agentic workflows
       const workflowsResponse = await apiClient.get('/api/agentic/workflows');
-      const allWorkflows = workflowsResponse || [];
-      
-      // Filter agentic workflows
-      const agentic = [];
-      for (const workflow of allWorkflows) {
-        if (workflow.workflow_type === 'agentic') {
-          agentic.push(workflow);
-        } else if (workflow.template_id) {
-          // Check if template is agentic
-          const isAgentic = await isAgenticTemplate(workflow.template_id);
-          if (isAgentic) {
-            agentic.push(workflow);
-          }
-        }
-      }
-      
-      setAgenticWorkflows(agentic);
+      setAgenticWorkflows(workflowsResponse || []);
       
       // Fetch recent executions
       const executionsResponse = await apiClient.get('/api/agentic-workflows/executions?limit=10');
@@ -189,20 +173,6 @@ const AgenticDashboard = () => {
       setLoading(false);
     }
   }, [toast]);
-  
-  // Check if a template is agentic
-  const isAgenticTemplate = async (templateId) => {
-    try {
-      const template = await apiClient.get(`/api/templates/${templateId}`);
-      return template && (
-        template.workflow_type === 'agentic' || 
-        template.config?.supervisor !== undefined
-      );
-    } catch (error) {
-      console.error('Error checking if template is agentic:', error);
-      return false;
-    }
-  };
   
   // Generate execution history data (mock data for now)
   const generateExecutionHistory = () => {
