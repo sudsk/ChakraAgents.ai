@@ -52,6 +52,15 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     """Authenticate a user."""
+    if BYPASS_AUTH:
+        # Return a dummy admin user for development
+        return User(
+            id=uuid.uuid4(),
+            username="dev_user",
+            email="dev@example.com",
+            is_active=True,
+            is_admin=True
+        )     
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return None
@@ -62,7 +71,15 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
 def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
-    
+    if BYPASS_AUTH:
+        # Return a dummy admin user for development
+        return User(
+            id=uuid.uuid4(),
+            username="dev_user",
+            email="dev@example.com",
+            is_active=True,
+            is_admin=True
+        )     
     """Get the current user from the request token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
