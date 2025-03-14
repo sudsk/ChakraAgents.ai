@@ -1,4 +1,7 @@
 # app/api/templates.py
+# At the top of each router file, add:
+from app.core.security import get_current_active_user
+
 from typing import List, Optional
 from uuid import UUID
 
