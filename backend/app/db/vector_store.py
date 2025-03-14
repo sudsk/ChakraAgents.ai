@@ -1,4 +1,5 @@
 # backend/app/db/vector_store.py
+from app.core.config import settings
 from langchain_community.vectorstores import Chroma, FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_vertexai import VertexAIEmbeddings
