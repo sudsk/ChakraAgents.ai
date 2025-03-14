@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import apiClient from '../services/api';
+import apiClient, { templatesApi } from '../services/api';
 import RAGConfigurationPanel from '../components/RAGConfigurationPanel';  
 import RAGTestConsole from '../components/RAGTestConsole';
 import React, { useState, useEffect } from 'react';
@@ -387,8 +387,8 @@ const TemplateEditor = () => {
     const fetchTemplate = async () => {
       try {
         setLoading(true);
-        // Get template data using apiClient
-        const data = await apiClient.get(`/api/templates/${id}`);  
+        // Get template data using templatesApi
+        const data = await templatesApi.getById(id);
 
         // Transform API response to component state format
         setTemplate({
@@ -729,10 +729,10 @@ const TemplateEditor = () => {
       let savedTemplate;
       if (id) {
         // Update existing template
-        savedTemplate = await apiClient.put(`/api/templates/${id}`, template);
+        savedTemplate = await templatesApi.update(id, template);
       } else {
         // Create new template
-        savedTemplate = await apiClient.post('/api/templates', template);
+        savedTemplate = await templatesApi.create(template);
       }
 
       toast({
