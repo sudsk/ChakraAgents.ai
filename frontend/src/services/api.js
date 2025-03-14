@@ -6,6 +6,8 @@
 class ApiClient {
   constructor(baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000') {
     this.baseUrl = baseUrl;
+      // Enable this for development to bypass authentication
+    this.bypassAuth = true;
   }
 
   /**
