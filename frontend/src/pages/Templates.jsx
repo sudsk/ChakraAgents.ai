@@ -106,11 +106,11 @@ const Templates = () => {
   }, [templates, searchQuery, typeFilter]);
   
   const handleCreateTemplate = () => {
-    navigate('/templates/new');
+    navigate('/agentic/templates/new');
   };
   
   const handleEditTemplate = (templateId) => {
-    navigate(`/templates/${templateId}`);
+    navigate(`/agentic/templates/${templateId}`);
   };
 
   const confirmDeleteTemplate = (template) => {
