@@ -1,4 +1,7 @@
 # app/api/workflows.py
+# At the top of each router file, add:
+from app.core.security import get_current_active_user
+
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
