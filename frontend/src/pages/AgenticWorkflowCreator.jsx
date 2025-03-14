@@ -58,6 +58,7 @@ import {
   FiEdit
 } from 'react-icons/fi';
 import apiClient from '../services/api';
+import { workflowsApi } from '../services/api';
 
 // Agent configuration form with agentic capabilities
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
@@ -1112,7 +1113,7 @@ const AgenticWorkflowCreator = () => {
   const testWorkflow = async () => {
     try {
       // Validate configuration using the agentic API
-      const validationResult = await agenticApiService.validateWorkflow(workflow.config);
+      const validationResult = await workflowsApi.validate(workflow.config);
       
       if (validationResult.valid) {
         toast({
