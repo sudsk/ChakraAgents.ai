@@ -773,7 +773,7 @@ const TemplateEditor = () => {
         <HStack>
           <IconButton
             icon={<FiArrowLeft />}
-            onClick={() => navigate('/templates')}
+            onClick={() => navigate('/agentic/templates')}
             aria-label="Back to templates"
           />
           <Heading>
