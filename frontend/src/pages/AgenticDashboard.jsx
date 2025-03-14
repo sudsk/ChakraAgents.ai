@@ -114,7 +114,7 @@ const AgenticDashboard = () => {
     setLoading(true);
     try {
       // Fetch agentic workflows
-      const workflowsResponse = await apiClient.get('/api/workflows');
+      const workflowsResponse = await apiClient.get('/api/agentic/workflows');
       const allWorkflows = workflowsResponse || [];
       
       // Filter agentic workflows
