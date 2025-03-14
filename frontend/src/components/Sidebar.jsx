@@ -3,10 +3,10 @@ import React from 'react';
 import { Box, VStack, Heading, Icon, Flex, Text, Divider, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody, useBreakpointValue, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  FiHome, FiLayout, FiCpu, FiSettings, 
-  FiActivity, FiGrid, FiTool, FiBox,
-  FiList, FiShare2, FiMessageCircle, FiDatabase,
-  FiCheckSquare, FiHardDrive, FiPlus
+  FiHome, FiCpu, FiSettings, 
+  FiActivity, FiGrid, FiTool, 
+  FiMessageCircle, FiDatabase,
+  FiList, FiShare2, FiCheckSquare, FiHardDrive, FiPlus
 } from 'react-icons/fi';
 
 // Navigation item component with active state
@@ -95,32 +95,7 @@ const SidebarContent = () => {
       </Flex>
       
       <VStack spacing={1} align="stretch">
-        <SidebarItem icon={FiHome} to="/">
-          Dashboard
-        </SidebarItem>
-        
-        <SidebarItem icon={FiLayout} to="/templates">
-          Templates
-        </SidebarItem>
-        
-        <SidebarItem icon={FiList} to="/workflows">
-          Workflows
-        </SidebarItem>
-        
-        {/* Agentic Workflows Section */}
-        <Divider my={2} />
-        
-        <Box px={4} py={1}>
-          <Text fontSize="xs" fontWeight="bold" color="gray.500">
-            AGENTIC AI
-          </Text>
-        </Box>
-        
-        <SidebarItem 
-          icon={FiCpu} 
-          to="/agentic" 
-          badge={{ text: 'New', color: 'purple' }}
-        >
+        <SidebarItem icon={FiCpu} to="/agentic">
           Agentic Dashboard
         </SidebarItem>
         
