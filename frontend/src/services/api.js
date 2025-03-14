@@ -19,10 +19,12 @@ class ApiClient {
       'Content-Type': 'application/json',
     };
 
-    // Add authentication token if available
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // Add authentication token if not in bypass mode
+    if (!this.bypassAuth) {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     return headers;
