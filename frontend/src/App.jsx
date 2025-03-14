@@ -13,7 +13,6 @@ import Login from './pages/Login';
 import Settings from './pages/Settings';
 
 // Components
-import Sidebar from './components/Sidebar';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
