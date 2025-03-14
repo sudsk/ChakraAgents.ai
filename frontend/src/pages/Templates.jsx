@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import apiClient from '../services/api';
+import apiClient, { templatesApi } from '../services/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -51,7 +51,7 @@ const Templates = () => {
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const templatesData = await apiClient.get('/api/templates');
+      const templatesData = await templatesApi.getAll();
       if (templatesData) {
         setTemplates(templatesData);
         setFilteredTemplates(templatesData);      
@@ -68,7 +68,7 @@ const Templates = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]); // Empty dependency array here is fine if it doesn't use any state/props
+  }, [toast]); 
     
   // Fetch templates on component mount
   useEffect(() => {
@@ -122,7 +122,7 @@ const Templates = () => {
     if (!templateToDelete) return;
     
     try {
-      await apiClient.delete(`/api/templates/${templateToDelete.id}`);      
+      await templatesApi.delete(templateToDelete.id);   
       
       // Remove from state
       setTemplates(templates.filter(t => t.id !== templateToDelete.id));
@@ -158,7 +158,7 @@ const Templates = () => {
         id: undefined // Remove ID so a new one is generated
       };
       
-      await apiClient.post('/api/templates', duplicatedTemplate);
+      await templatesApi.create(duplicatedTemplate);
           
       // Refresh templates list
       fetchTemplates();
