@@ -100,4 +100,24 @@ def test_tool_test_endpoint():
         }
     )
     # Even if the tool isn't registered, we should get a valid response format
-    assert response
+    assert response.status_code in [200, 404, 500]  # Either success or specific error
+    data = response.json()
+    assert "success" in data  # Response should have a success indicator
+
+# Test workflow endpoints - these would require setup data
+def test_list_workflows():
+    """Test listing workflows."""
+    response = client.get("/api/agentic/workflows")
+    assert response.status_code == 200
+    workflows = response.json()
+    assert isinstance(workflows, list)
+    
+def test_executions_endpoints():
+    """Test executions endpoints."""
+    response = client.get("/api/agentic/executions")
+    assert response.status_code == 200
+    executions = response.json()
+    assert isinstance(executions, list)
+    
+if __name__ == "__main__":
+    pytest.main(["-xvs", __file__])
