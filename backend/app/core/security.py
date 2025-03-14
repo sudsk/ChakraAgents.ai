@@ -31,7 +31,13 @@ DEV_USER = User(
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme for token handling
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+# Replace OAuth2 scheme with a dummy implementation
+class DummyOAuth2Scheme:
+    async def __call__(self, request):
+        return "dummy_token_for_development"
+
+oauth2_scheme = DummyOAuth2Scheme()
 
 # Models
 class Token(BaseModel):
@@ -98,14 +104,32 @@ def get_current_user(
         raise credentials_exception
     return user
 
-def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
-    """Check if the current user is active."""
-    """Always return a dev user, completely bypassing authentication"""
-    return DEV_USER  
+# Create a dummy user for development
+def get_dummy_user():
+    from app.db.models import User
+    import uuid
     
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
+    return User(
+        id=uuid.uuid4(),
+        username="dev_user",
+        email="dev@example.com",
+        is_active=True,
+        is_admin=True,
+        # Add any other required fields
+    )
+# Development implementation that completely bypasses authentication
+async def get_current_active_user(token: str = Depends(oauth2_scheme), db = None):
+    """Development version that always returns a dummy admin user"""
+    return get_dummy_user()
+    
+#def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+#    """Check if the current user is active."""
+#    """Always return a dev user, completely bypassing authentication"""
+#    return DEV_USER  
+    
+#    if not current_user.is_active:
+#        raise HTTPException(status_code=400, detail="Inactive user")
+#    return current_user 
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Check if the current user is an admin."""
