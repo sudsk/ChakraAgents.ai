@@ -185,6 +185,9 @@ export const workflowsApi = {
   
   // Run a workflow
   run: (id, data) => apiClient.post(`/api/agentic/workflows/${id}/run`, data),
+  
+  // Validate a workflow
+  validate: (config) => apiClient.post('/api/agentic/validate', { config }),
 };
 
 // Executions API
