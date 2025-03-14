@@ -409,7 +409,7 @@ const TemplateEditor = () => {
         });
 
         // Navigate back to templates list on error
-        navigate('/templates');
+        navigate('/agentic/templates');
       } finally {
         setLoading(false);
       }
@@ -744,7 +744,7 @@ const TemplateEditor = () => {
       });
       
       // Redirect to templates list or the saved template
-      navigate('/templates');
+      navigate('/agentic/templates');
     } catch (error) {
       console.error('Error saving template:', error);
       toast({
