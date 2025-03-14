@@ -6,7 +6,11 @@ from langchain_google_vertexai import VertexAIEmbeddings
 class VectorStoreManager:
     def __init__(self, embedding_model="vertex_ai"):
         if embedding_model == "vertex_ai":
-            self.embeddings = VertexAIEmbeddings()
+            self.embeddings = VertexAIEmbeddings(
+                model_name="textembedding-gecko@latest",  # Use appropriate model name
+                project=settings.VERTEX_AI_PROJECT_ID,    # Make sure this is defined
+                location="us-central1"                    # Specify region
+            )
         else:
             self.embeddings = OpenAIEmbeddings()
         
