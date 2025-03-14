@@ -1,6 +1,4 @@
 // frontend/src/pages/AgenticWorkflowCreator.jsx
-import apiClient from '../services/api';
-import agenticApiService from '../services/agenticApi';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -30,13 +28,8 @@ import {
   Flex,
   Divider,
   Badge,
-  useToast,
-  Code,
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionPanel,
-  AccordionIcon,
+  Alert,
+  AlertIcon,
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -44,9 +37,9 @@ import {
   PopoverCloseButton,
   PopoverHeader,
   PopoverBody,
-  Alert,
-  AlertIcon,
-  Spinner
+  Code,
+  Spinner,
+  useToast
 } from '@chakra-ui/react';
 import { 
   FiSave, 
@@ -61,738 +54,17 @@ import {
   FiDatabase, 
   FiMessageCircle, 
   FiInfo, 
-  FiShare2 
+  FiShare2,
+  FiEdit
 } from 'react-icons/fi';
+import apiClient from '../services/api';
+import agenticApiService from '../services/agenticApi';
 
 // Agent configuration form with agentic capabilities
 const AgentConfigForm = ({ agent, onChange, onDelete, isNew, providers, modelOptions }) => {
   const handleChange = (field, value) => {
     onChange({ ...agent, [field]: value });
   };
-
-
-  // Add new agent
-  const addNewAgent = () => {
-    const newAgent = {
-      name: `agent_${Date.now().toString(36)}`,
-      role: 'worker',
-      model_provider: 'vertex_ai',
-      model_name: 'gemini-1.5-flash',
-      prompt_template: 'You are a specialized agent.\n\nTask: {input}\n\n{make_decision}',
-      system_message: 'You are a specialized agent that works as part of a team. You can use tools and communicate with other agents to solve complex tasks.',
-      temperature: 0.7,
-      can_delegate: true,
-      can_use_tools: true,
-      can_finalize: false,
-      autonomous_decisions: true,
-      agentic_system_message: true
-    };
-    
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workers: [...(workflow.config.workers || []), newAgent]
-      }
-    });
-  };
-  
-  // Delete agent
-  const deleteAgent = (index) => {
-    const updatedWorkers = [...(workflow.config.workers || [])];
-    updatedWorkers.splice(index, 1);
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workers: updatedWorkers
-      }
-    });
-  };
-  
-  // Handle tool changes
-  const handleToolChange = (index, updatedTool) => {
-    const updatedTools = [...(workflow.config.tools || [])];
-    updatedTools[index] = updatedTool;
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: updatedTools
-      }
-    });
-  };
-  
-  // Add new tool
-  const addNewTool = () => {
-    const newTool = {
-      name: `tool_${Date.now().toString(36)}`,
-      description: 'Description of what this tool does',
-      function_name: 'function_name',
-      parameters: {
-        "param1": {
-          "type": "string",
-          "description": "Parameter description"
-        }
-      },
-      requires_confirmation: false,
-      always_available: true
-    };
-    
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: [...(workflow.config.tools || []), newTool]
-      }
-    });
-  };
-  
-  // Delete tool
-  const deleteTool = (index) => {
-    const updatedTools = [...(workflow.config.tools || [])];
-    updatedTools.splice(index, 1);
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        tools: updatedTools
-      }
-    });
-  };
-  
-  // Update workflow config
-  const handleWorkflowConfigChange = (field, value) => {
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        workflow_config: {
-          ...(workflow.config.workflow_config || {}),
-          [field]: value
-        }
-      }
-    });
-  };
-  
-  // Update execution graph
-  const handleExecutionGraphChange = (newGraph) => {
-    setWorkflow({
-      ...workflow,
-      config: {
-        ...workflow.config,
-        execution_graph: newGraph
-      }
-    });
-  };
-  
-  // Import from template
-  const handleImportFromTemplate = async (templateId) => {
-    if (!templateId) return;
-    
-    try {
-      // Fetch template details
-      const template = await apiClient.get(`/api/templates/${templateId}`);
-      
-      // Extract agents and tools from template
-      const config = {
-        ...workflow.config,
-        workflow_config: {
-          ...(workflow.config.workflow_config || {}),
-          ...template.config.workflow_config
-        }
-      };
-      
-      // Copy supervisor if exists
-      if (template.config.supervisor) {
-        config.supervisor = {
-          ...template.config.supervisor,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: true,
-          autonomous_decisions: true
-        };
-      }
-      
-      // Copy workers if exist
-      if (template.config.workers && template.config.workers.length > 0) {
-        config.workers = template.config.workers.map(worker => ({
-          ...worker,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: false,
-          autonomous_decisions: true
-        }));
-      }
-      
-      // Copy agents if swarm type
-      if (template.config.agents && template.config.agents.length > 0) {
-        // Convert swarm agents to supervisor/worker setup
-        const firstAgent = template.config.agents[0];
-        config.supervisor = {
-          ...firstAgent,
-          name: 'supervisor',
-          role: 'supervisor',
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: true,
-          autonomous_decisions: true
-        };
-        
-        config.workers = template.config.agents.slice(1).map(agent => ({
-          ...agent,
-          agentic_system_message: true,
-          can_delegate: true,
-          can_use_tools: true,
-          can_finalize: false,
-          autonomous_decisions: true
-        }));
-      }
-      
-      // Copy tools
-      if (template.config.tools && template.config.tools.length > 0) {
-        config.tools = template.config.tools.map(tool => ({
-          ...tool,
-          requires_confirmation: false,
-          always_available: true
-        }));
-      }
-      
-      // Update workflow
-      setWorkflow({
-        ...workflow,
-        template_id: templateId,
-        config
-      });
-      
-      toast({
-        title: 'Template Imported',
-        description: 'Template configuration has been applied',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Error importing template:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to import template',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-  
-  // Test workflow with validation
-  const testWorkflow = async () => {
-    try {
-      // Validate configuration using the agentic API
-      const validationResult = await agenticApiService.validateWorkflow(workflow.config);
-      
-      if (validationResult.valid) {
-        toast({
-          title: 'Workflow Validation Successful',
-          description: validationResult.message || 'The workflow configuration is valid',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-        
-        // Set enhanced config if provided
-        if (validationResult.enhanced_config) {
-          setWorkflow(prev => ({
-            ...prev,
-            config: validationResult.enhanced_config
-          }));
-        }
-      } else {
-        toast({
-          title: 'Workflow Validation Failed',
-          description: validationResult.message || 'The workflow configuration is invalid',
-          status: 'warning',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Error validating workflow:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to validate workflow',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-  
-  // Save workflow
-  const saveWorkflow = async () => {
-    // Validate fields
-    if (!workflow.name) {
-      toast({
-        title: 'Validation Error',
-        description: 'Workflow name is required',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    if (!workflow.config.supervisor) {
-      toast({
-        title: 'Validation Error',
-        description: 'Supervisor agent is required',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    setSaving(true);
-    
-    try {
-      let savedWorkflow;
-      
-      if (id) {
-        // Update existing workflow
-        savedWorkflow = await apiClient.put(`/api/workflows/${id}`, {
-          ...workflow,
-          workflow_type: 'agentic', // Ensure workflow type is agentic
-        });
-      } else {
-        // Create new workflow
-        savedWorkflow = await apiClient.post('/api/workflows', {
-          ...workflow,
-          workflow_type: 'agentic', // Ensure workflow type is agentic
-        });
-      }
-      
-      toast({
-        title: 'Success',
-        description: `Workflow ${id ? 'updated' : 'created'} successfully`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // Navigate to workflow list
-      navigate('/workflows');
-    } catch (error) {
-      console.error('Error saving workflow:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to save workflow',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-  
-  // Get list of all agent names (for execution graph)
-  const getAgentNames = () => {
-    const names = [];
-    
-    if (workflow.config.supervisor) {
-      names.push(workflow.config.supervisor.name);
-    }
-    
-    if (workflow.config.workers) {
-      workflow.config.workers.forEach(worker => {
-        if (worker.name) {
-          names.push(worker.name);
-        }
-      });
-    }
-    
-    return names;
-  };
-  
-  if (loading) {
-    return (
-      <Flex justify="center" align="center" height="500px" width="100%">
-        <Spinner size="xl" color="brand.500" />
-      </Flex>
-    );
-  }
-  
-  return (
-    <Box>
-      <Flex justify="space-between" align="center" mb={6}>
-        <HStack>
-          <IconButton
-            icon={<FiArrowLeft />}
-            onClick={() => navigate('/workflows')}
-            aria-label="Back to workflows"
-          />
-          <Heading>
-            {isNewWorkflow ? 'Create Agentic Workflow' : 'Edit Agentic Workflow'}
-          </Heading>
-          <Badge colorScheme="purple" ml={2}>Agentic</Badge>
-        </HStack>
-        
-        <HStack>
-          <Button
-            leftIcon={<FiPlay />}
-            colorScheme="green"
-            variant="outline"
-            onClick={testWorkflow}
-          >
-            Test Workflow
-          </Button>
-          <Button
-            leftIcon={<FiSave />}
-            colorScheme="brand"
-            onClick={saveWorkflow}
-            isLoading={saving}
-          >
-            Save Workflow
-          </Button>
-        </HStack>
-      </Flex>
-      
-      <SimpleGrid columns={{ base: 1, lg: showPreview ? 2 : 1 }} spacing={8}>
-        <Box>
-          {/* Basic workflow details */}
-          <Card mb={6}>
-            <CardBody>
-              <FormControl mb={4} isRequired>
-                <FormLabel>Workflow Name</FormLabel>
-                <Input
-                  value={workflow.name}
-                  onChange={(e) => handleFormChange('name', e.target.value)}
-                  placeholder="e.g. Research Assistant"
-                />
-              </FormControl>
-              
-              <FormControl mb={4}>
-                <FormLabel>Description</FormLabel>
-                <Textarea
-                  value={workflow.description}
-                  onChange={(e) => handleFormChange('description', e.target.value)}
-                  placeholder="Describe what this workflow does"
-                  rows={3}
-                />
-              </FormControl>
-              
-              <FormControl mb={4}>
-                <FormLabel>Import from Template (Optional)</FormLabel>
-                <Select
-                  value={workflow.template_id || ''}
-                  onChange={(e) => handleImportFromTemplate(e.target.value)}
-                  placeholder="Select template to import configuration"
-                >
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} ({template.workflow_type})
-                    </option>
-                  ))}
-                </Select>
-                <FormHelperText>
-                  Import agents and tools from an existing template to accelerate setup
-                </FormHelperText>
-              </FormControl>
-            </CardBody>
-          </Card>
-          
-          {/* Workflow details tabs */}
-          <Tabs colorScheme="brand" isLazy>
-            <TabList>
-              <Tab><Box as={FiCpu} mr={2} /> Agents</Tab>
-              <Tab><Box as={FiTool} mr={2} /> Tools</Tab>
-              <Tab><Box as={FiShare2} mr={2} /> Flow</Tab>
-              <Tab><Box as={FiSettings} mr={2} /> Settings</Tab>
-            </TabList>
-            
-            <TabPanels>
-              {/* Agents Tab */}
-              <TabPanel p={0} pt={4}>
-                {workflow.config.supervisor && (
-                  <AgentConfigForm
-                    agent={workflow.config.supervisor}
-                    onChange={(updatedAgent) => handleAgentChange(-1, updatedAgent)}
-                    isNew={false}
-                    providers={providers}
-                    modelOptions={modelOptions}
-                  />
-                )}
-                
-                <Box>
-                  <Flex justify="space-between" align="center" mb={4}>
-                    <Heading size="md">Worker Agents</Heading>
-                    <Button
-                      leftIcon={<FiPlus />}
-                      colorScheme="brand"
-                      variant="outline"
-                      onClick={addNewAgent}
-                    >
-                      Add Worker Agent
-                    </Button>
-                  </Flex>
-                  
-                  {workflow.config.workers?.map((worker, index) => (
-                    <AgentConfigForm
-                      key={index}
-                      agent={worker}
-                      onChange={(updatedAgent) => handleAgentChange(index, updatedAgent)}
-                      onDelete={() => deleteAgent(index)}
-                      isNew={false}
-                      providers={providers}
-                      modelOptions={modelOptions}
-                    />
-                  ))}
-                  
-                  {!workflow.config.workers?.length && (
-                    <Text color="gray.500" textAlign="center" py={4}>
-                      No worker agents defined yet. Add some to get started.
-                    </Text>
-                  )}
-                </Box>
-              </TabPanel>
-              
-              {/* Tools Tab */}
-              <TabPanel p={0} pt={4}>
-                <Flex justify="space-between" align="center" mb={4}>
-                  <Heading size="md">Tools</Heading>
-                  <Button
-                    leftIcon={<FiPlus />}
-                    colorScheme="brand"
-                    variant="outline"
-                    onClick={addNewTool}
-                  >
-                    Add Tool
-                  </Button>
-                </Flex>
-                
-                {workflow.config.tools?.map((tool, index) => (
-                  <ToolConfigForm
-                    key={index}
-                    tool={tool}
-                    onChange={(updatedTool) => handleToolChange(index, updatedTool)}
-                    onDelete={() => deleteTool(index)}
-                    isNew={false}
-                  />
-                ))}
-                
-                {!workflow.config.tools?.length && (
-                  <Text color="gray.500" textAlign="center" py={4}>
-                    No tools defined yet. Add some to enable agent capabilities.
-                  </Text>
-                )}
-              </TabPanel>
-              
-              {/* Flow Tab */}
-              <TabPanel p={0} pt={4}>
-                <ExecutionGraphEditor 
-                  graph={workflow.config.execution_graph || {}}
-                  onChange={handleExecutionGraphChange}
-                  availableAgents={getAgentNames()}
-                />
-                
-                <Card>
-                  <CardHeader>
-                    <Heading size="md">Decision Flow</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <FormControl mb={4}>
-                      <FormLabel>Override Default Decisions</FormLabel>
-                      <Switch
-                        isChecked={workflow.config.override_agent_decisions}
-                        onChange={(e) => handleFormChange('config', {
-                          ...workflow.config,
-                          override_agent_decisions: e.target.checked
-                        })}
-                        colorScheme="purple"
-                      />
-                      <FormHelperText>
-                        When enabled, the execution graph will override agent decisions about delegation
-                      </FormHelperText>
-                    </FormControl>
-                    
-                    <Alert status="info" borderRadius="md">
-                      <AlertIcon />
-                      <Box>
-                        <Text fontWeight="medium">Agentic Decision Making</Text>
-                        <Text fontSize="sm">
-                          By default, agents will make their own decisions about which agent to delegate to next.
-                          Use the execution graph above to restrict which agents can delegate to which other agents.
-                        </Text>
-                      </Box>
-                    </Alert>
-                  </CardBody>
-                </Card>
-              </TabPanel>
-              
-              {/* Settings Tab */}
-              <TabPanel p={0} pt={4}>
-                <Card>
-                  <CardBody>
-                    <Heading size="md" mb={4}>Workflow Configuration</Heading>
-                    
-                    <FormControl mb={4}>
-                      <FormLabel>Max Iterations</FormLabel>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={workflow.config.workflow_config?.max_iterations || 5}
-                        onChange={(e) => handleWorkflowConfigChange('max_iterations', parseInt(e.target.value))}
-                      />
-                      <FormHelperText>
-                        Maximum number of decision steps before forcing completion (1-20)
-                      </FormHelperText>
-                    </FormControl>
-                    
-                    <FormControl mb={4}>
-                      <FormLabel>Checkpoint Directory</FormLabel>
-                      <Input
-                        value={workflow.config.workflow_config?.checkpoint_dir || './checkpoints'}
-                        onChange={(e) => handleWorkflowConfigChange('checkpoint_dir', e.target.value)}
-                      />
-                      <FormHelperText>
-                        Directory to store workflow state checkpoints
-                      </FormHelperText>
-                    </FormControl>
-                    
-                    <FormControl mb={4}>
-                      <FormLabel>Enable Detailed Logging</FormLabel>
-                      <Switch
-                        isChecked={workflow.config.workflow_config?.enable_logging || false}
-                        onChange={(e) => handleWorkflowConfigChange('enable_logging', e.target.checked)}
-                      />
-                      <FormHelperText>
-                        Enable verbose logging of agent decisions and tool usage
-                      </FormHelperText>
-                    </FormControl>
-                    
-                    <Divider my={4} />
-                    
-                    <Heading size="sm" mb={3}>Advanced Settings</Heading>
-                    
-                    <FormControl mb={4}>
-                      <FormLabel>Agent Decision Format</FormLabel>
-                      <Select
-                        value={workflow.config.workflow_config?.decision_format || 'hybrid'}
-                        onChange={(e) => handleWorkflowConfigChange('decision_format', e.target.value)}
-                      >
-                        <option value="hybrid">Hybrid (Natural Language + Structured)</option>
-                        <option value="structured">Structured Only (JSON)</option>
-                        <option value="natural">Natural Language Only</option>
-                      </Select>
-                      <FormHelperText>
-                        How agents should format their decisions
-                      </FormHelperText>
-                    </FormControl>
-                    
-                    <FormControl mb={4}>
-                      <FormLabel>Max Decision Time (Seconds)</FormLabel>
-                      <Input
-                        type="number"
-                        min="5"
-                        max="300"
-                        value={workflow.config.workflow_config?.max_decision_time_seconds || 60}
-                        onChange={(e) => handleWorkflowConfigChange('max_decision_time_seconds', parseInt(e.target.value))}
-                      />
-                      <FormHelperText>
-                        Maximum time allowed for agent decisions before timing out
-                      </FormHelperText>
-                    </FormControl>
-                  </CardBody>
-                </Card>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-        </Box>
-        
-        {/* Workflow Preview */}
-        {showPreview && (
-          <Box>
-            <Card>
-              <CardBody>
-                <Heading size="md" mb={4}>Workflow Preview</Heading>
-                <Tabs variant="enclosed" size="sm">
-                  <TabList>
-                    <Tab>Visual</Tab>
-                    <Tab>JSON</Tab>
-                  </TabList>
-                  <TabPanels>
-                    <TabPanel>
-                      <Box p={4} borderWidth="1px" borderRadius="md" bg="gray.50">
-                        <Heading size="sm" mb={3}>{workflow.name}</Heading>
-                        <Text fontSize="sm" mb={4}>{workflow.description}</Text>
-                        
-                        <Box mb={4}>
-                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>WORKFLOW TYPE</Text>
-                          <Badge colorScheme="purple">Agentic</Badge>
-                        </Box>
-                        
-                        <Box mb={4}>
-                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>SUPERVISOR</Text>
-                          <HStack>
-                            <Badge colorScheme="blue">{workflow.config.supervisor?.model_provider}</Badge>
-                            <Text fontSize="sm">{workflow.config.supervisor?.name}</Text>
-                          </HStack>
-                          
-                          <Divider my={3} />
-                          
-                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>WORKERS</Text>
-                          {workflow.config.workers?.map((worker, idx) => (
-                            <Box key={idx} mb={2}>
-                              <HStack>
-                                <Badge colorScheme="green">{worker.role}</Badge>
-                                <Text fontSize="sm">{worker.name}</Text>
-                                <Badge colorScheme="gray">{worker.model_provider}</Badge>
-                              </HStack>
-                            </Box>
-                          ))}
-                        </Box>
-                        
-                        <Box mb={4}>
-                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>TOOLS</Text>
-                          {workflow.config.tools?.map((tool, idx) => (
-                            <Badge key={idx} mr={2} mb={2} colorScheme="orange">
-                              {tool.name}
-                            </Badge>
-                          ))}
-                          {!workflow.config.tools?.length && (
-                            <Text fontSize="sm" color="gray.500">No tools configured</Text>
-                          )}
-                        </Box>
-                      </Box>
-                    </TabPanel>
-                    <TabPanel>
-                      <Box
-                        p={4}
-                        borderWidth="1px"
-                        borderRadius="md"
-                        fontFamily="mono"
-                        fontSize="sm"
-                        bg="gray.50"
-                        overflow="auto"
-                        maxH="600px"
-                      >
-                        <pre>{JSON.stringify(workflow, null, 2)}</pre>
-                      </Box>
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </CardBody>
-            </Card>
-          </Box>
-        )}
-      </SimpleGrid>
-    </Box>
-  );
-};
 
   return (
     <Card mb={4} borderWidth="1px" borderColor="gray.200">
@@ -1620,5 +892,728 @@ const AgenticWorkflowCreator = () => {
       });
     }
   };
+  
+  // Add new agent
+  const addNewAgent = () => {
+    const newAgent = {
+      name: `agent_${Date.now().toString(36)}`,
+      role: 'worker',
+      model_provider: 'vertex_ai',
+      model_name: 'gemini-1.5-flash',
+      prompt_template: 'You are a specialized agent.\n\nTask: {input}\n\n{make_decision}',
+      system_message: 'You are a specialized agent that works as part of a team. You can use tools and communicate with other agents to solve complex tasks.',
+      temperature: 0.7,
+      can_delegate: true,
+      can_use_tools: true,
+      can_finalize: false,
+      autonomous_decisions: true,
+      agentic_system_message: true
+    };
+    
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workers: [...(workflow.config.workers || []), newAgent]
+      }
+    });
+  };
+  
+  // Delete agent
+  const deleteAgent = (index) => {
+    const updatedWorkers = [...(workflow.config.workers || [])];
+    updatedWorkers.splice(index, 1);
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workers: updatedWorkers
+      }
+    });
+  };
+  
+  // Handle tool changes
+  const handleToolChange = (index, updatedTool) => {
+    const updatedTools = [...(workflow.config.tools || [])];
+    updatedTools[index] = updatedTool;
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: updatedTools
+      }
+    });
+  };
+  
+  // Add new tool
+  const addNewTool = () => {
+    const newTool = {
+      name: `tool_${Date.now().toString(36)}`,
+      description: 'Description of what this tool does',
+      function_name: 'function_name',
+      parameters: {
+        "param1": {
+          "type": "string",
+          "description": "Parameter description"
+        }
+      },
+      requires_confirmation: false,
+      always_available: true
+    };
+    
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: [...(workflow.config.tools || []), newTool]
+      }
+    });
+  };
+  
+  // Delete tool
+  const deleteTool = (index) => {
+    const updatedTools = [...(workflow.config.tools || [])];
+    updatedTools.splice(index, 1);
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        tools: updatedTools
+      }
+    });
+  };
+  
+  // Update workflow config
+  const handleWorkflowConfigChange = (field, value) => {
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        workflow_config: {
+          ...(workflow.config.workflow_config || {}),
+          [field]: value
+        }
+      }
+    });
+  };
+  
+  // Update execution graph
+  const handleExecutionGraphChange = (newGraph) => {
+    setWorkflow({
+      ...workflow,
+      config: {
+        ...workflow.config,
+        execution_graph: newGraph
+      }
+    });
+  };
+  
+  // Import from template
+  const handleImportFromTemplate = async (templateId) => {
+    if (!templateId) return;
+    
+    try {
+      // Fetch template details
+      const template = await apiClient.get(`/api/templates/${templateId}`);
+      
+      // Extract agents and tools from template
+      const config = {
+        ...workflow.config,
+        workflow_config: {
+          ...(workflow.config.workflow_config || {}),
+          ...template.config.workflow_config
+        }
+      };
+      
+      // Copy supervisor if exists
+      if (template.config.supervisor) {
+        config.supervisor = {
+          ...template.config.supervisor,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: true,
+          autonomous_decisions: true
+        };
+      }
+      
+      // Copy workers if exist
+      if (template.config.workers && template.config.workers.length > 0) {
+        config.workers = template.config.workers.map(worker => ({
+          ...worker,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: false,
+          autonomous_decisions: true
+        }));
+      }
+      
+      // Copy agents if swarm type
+      if (template.config.agents && template.config.agents.length > 0) {
+        // Convert swarm agents to supervisor/worker setup
+        const firstAgent = template.config.agents[0];
+        config.supervisor = {
+          ...firstAgent,
+          name: 'supervisor',
+          role: 'supervisor',
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: true,
+          autonomous_decisions: true
+        };
+        
+        config.workers = template.config.agents.slice(1).map(agent => ({
+          ...agent,
+          agentic_system_message: true,
+          can_delegate: true,
+          can_use_tools: true,
+          can_finalize: false,
+          autonomous_decisions: true
+        }));
+      }
+      
+      // Copy tools
+      if (template.config.tools && template.config.tools.length > 0) {
+        config.tools = template.config.tools.map(tool => ({
+          ...tool,
+          requires_confirmation: false,
+          always_available: true
+        }));
+      }
+      
+      // Update workflow
+      setWorkflow({
+        ...workflow,
+        template_id: templateId,
+        config
+      });
+      
+      toast({
+        title: 'Template Imported',
+        description: 'Template configuration has been applied',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error importing template:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to import template',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Test workflow with validation
+  const testWorkflow = async () => {
+    try {
+      // Validate configuration using the agentic API
+      const validationResult = await agenticApiService.validateWorkflow(workflow.config);
+      
+      if (validationResult.valid) {
+        toast({
+          title: 'Workflow Validation Successful',
+          description: validationResult.message || 'The workflow configuration is valid',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // Set enhanced config if provided
+        if (validationResult.enhanced_config) {
+          setWorkflow(prev => ({
+            ...prev,
+            config: validationResult.enhanced_config
+          }));
+        }
+      } else {
+        toast({
+          title: 'Workflow Validation Failed',
+          description: validationResult.message || 'The workflow configuration is invalid',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error validating workflow:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to validate workflow',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Save workflow
+  const saveWorkflow = async () => {
+    // Validate fields
+    if (!workflow.name) {
+      toast({
+        title: 'Validation Error',
+        description: 'Workflow name is required',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    if (!workflow.config.supervisor) {
+      toast({
+        title: 'Validation Error',
+        description: 'Supervisor agent is required',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    setSaving(true);
+    
+    try {
+      let savedWorkflow;
+      
+      if (id) {
+        // Update existing workflow
+        savedWorkflow = await apiClient.put(`/api/workflows/${id}`, {
+          ...workflow,
+          workflow_type: 'agentic', // Ensure workflow type is agentic
+        });
+      } else {
+        // Create new workflow
+        savedWorkflow = await apiClient.post('/api/workflows', {
+          ...workflow,
+          workflow_type: 'agentic', // Ensure workflow type is agentic
+        });
+      }
+      
+      toast({
+        title: 'Success',
+        description: `Workflow ${id ? 'updated' : 'created'} successfully`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Navigate to workflow list
+      navigate('/workflows');
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save workflow',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  // Get list of all agent names (for execution graph)
+  const getAgentNames = () => {
+    const names = [];
+    
+    if (workflow.config.supervisor) {
+      names.push(workflow.config.supervisor.name);
+    }
+    
+    if (workflow.config.workers) {
+      workflow.config.workers.forEach(worker => {
+        if (worker.name) {
+          names.push(worker.name);
+        }
+      });
+    }
+    
+    return names;
+  };
+  
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" height="500px" width="100%">
+        <Spinner size="xl" color="brand.500" />
+      </Flex>
+    );
+  }
+  
+  return (
+    <Box>
+      <Flex justify="space-between" align="center" mb={6}>
+        <HStack>
+          <IconButton
+            icon={<FiArrowLeft />}
+            onClick={() => navigate('/workflows')}
+            aria-label="Back to workflows"
+          />
+          <Heading>
+            {isNewWorkflow ? 'Create Agentic Workflow' : 'Edit Agentic Workflow'}
+          </Heading>
+          <Badge colorScheme="purple" ml={2}>Agentic</Badge>
+        </HStack>
+        
+        <HStack>
+          <Button
+            leftIcon={<FiPlay />}
+            colorScheme="green"
+            variant="outline"
+            onClick={testWorkflow}
+          >
+            Test Workflow
+          </Button>
+          <Button
+            leftIcon={<FiSave />}
+            colorScheme="brand"
+            onClick={saveWorkflow}
+            isLoading={saving}
+          >
+            Save Workflow
+          </Button>
+        </HStack>
+      </Flex>
+      
+      <SimpleGrid columns={{ base: 1, lg: showPreview ? 2 : 1 }} spacing={8}>
+        <Box>
+          {/* Basic workflow details */}
+          <Card mb={6}>
+            <CardBody>
+              <FormControl mb={4} isRequired>
+                <FormLabel>Workflow Name</FormLabel>
+                <Input
+                  value={workflow.name}
+                  onChange={(e) => handleFormChange('name', e.target.value)}
+                  placeholder="e.g. Research Assistant"
+                />
+              </FormControl>
+              
+              <FormControl mb={4}>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  value={workflow.description}
+                  onChange={(e) => handleFormChange('description', e.target.value)}
+                  placeholder="Describe what this workflow does"
+                  rows={3}
+                />
+              </FormControl>
+              
+              <FormControl mb={4}>
+                <FormLabel>Import from Template (Optional)</FormLabel>
+                <Select
+                  value={workflow.template_id || ''}
+                  onChange={(e) => handleImportFromTemplate(e.target.value)}
+                  placeholder="Select template to import configuration"
+                >
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} ({template.workflow_type})
+                    </option>
+                  ))}
+                </Select>
+                <FormHelperText>
+                  Import agents and tools from an existing template to accelerate setup
+                </FormHelperText>
+              </FormControl>
+            </CardBody>
+          </Card>
+          
+          {/* Workflow details tabs */}
+          <Tabs colorScheme="brand" isLazy>
+            <TabList>
+              <Tab><Box as={FiCpu} mr={2} /> Agents</Tab>
+              <Tab><Box as={FiTool} mr={2} /> Tools</Tab>
+              <Tab><Box as={FiShare2} mr={2} /> Flow</Tab>
+              <Tab><Box as={FiSettings} mr={2} /> Settings</Tab>
+            </TabList>
+            
+            <TabPanels>
+              {/* Agents Tab */}
+              <TabPanel p={0} pt={4}>
+                {workflow.config.supervisor && (
+                  <AgentConfigForm
+                    agent={workflow.config.supervisor}
+                    onChange={(updatedAgent) => handleAgentChange(-1, updatedAgent)}
+                    isNew={false}
+                    providers={providers}
+                    modelOptions={modelOptions}
+                  />
+                )}
+                
+                <Box>
+                  <Flex justify="space-between" align="center" mb={4}>
+                    <Heading size="md">Worker Agents</Heading>
+                    <Button
+                      leftIcon={<FiPlus />}
+                      colorScheme="brand"
+                      variant="outline"
+                      onClick={addNewAgent}
+                    >
+                      Add Worker Agent
+                    </Button>
+                  </Flex>
+                  
+                  {workflow.config.workers?.map((worker, index) => (
+                    <AgentConfigForm
+                      key={index}
+                      agent={worker}
+                      onChange={(updatedAgent) => handleAgentChange(index, updatedAgent)}
+                      onDelete={() => deleteAgent(index)}
+                      isNew={false}
+                      providers={providers}
+                      modelOptions={modelOptions}
+                    />
+                  ))}
+                  
+                  {!workflow.config.workers?.length && (
+                    <Text color="gray.500" textAlign="center" py={4}>
+                      No worker agents defined yet. Add some to get started.
+                    </Text>
+                  )}
+                </Box>
+              </TabPanel>
+              
+              {/* Tools Tab */}
+              <TabPanel p={0} pt={4}>
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Heading size="md">Tools</Heading>
+                  <Button
+                    leftIcon={<FiPlus />}
+                    colorScheme="brand"
+                    variant="outline"
+                    onClick={addNewTool}
+                  >
+                    Add Tool
+                  </Button>
+                </Flex>
+                
+                {workflow.config.tools?.map((tool, index) => (
+                  <ToolConfigForm
+                    key={index}
+                    tool={tool}
+                    onChange={(updatedTool) => handleToolChange(index, updatedTool)}
+                    onDelete={() => deleteTool(index)}
+                    isNew={false}
+                  />
+                ))}
+                
+                {!workflow.config.tools?.length && (
+                  <Text color="gray.500" textAlign="center" py={4}>
+                    No tools defined yet. Add some to enable agent capabilities.
+                  </Text>
+                )}
+              </TabPanel>
+              
+              {/* Flow Tab */}
+              <TabPanel p={0} pt={4}>
+                <ExecutionGraphEditor 
+                  graph={workflow.config.execution_graph || {}}
+                  onChange={handleExecutionGraphChange}
+                  availableAgents={getAgentNames()}
+                />
+                
+                <Card>
+                  <CardHeader>
+                    <Heading size="md">Decision Flow</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <FormControl mb={4}>
+                      <FormLabel>Override Default Decisions</FormLabel>
+                      <Switch
+                        isChecked={workflow.config.override_agent_decisions}
+                        onChange={(e) => handleFormChange('config', {
+                          ...workflow.config,
+                          override_agent_decisions: e.target.checked
+                        })}
+                        colorScheme="purple"
+                      />
+                      <FormHelperText>
+                        When enabled, the execution graph will override agent decisions about delegation
+                      </FormHelperText>
+                    </FormControl>
+                    
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <Text fontWeight="medium">Agentic Decision Making</Text>
+                        <Text fontSize="sm">
+                          By default, agents will make their own decisions about which agent to delegate to next.
+                          Use the execution graph above to restrict which agents can delegate to which other agents.
+                        </Text>
+                      </Box>
+                    </Alert>
+                  </CardBody>
+                </Card>
+              </TabPanel>
+              
+              {/* Settings Tab */}
+              <TabPanel p={0} pt={4}>
+                <Card>
+                  <CardBody>
+                    <Heading size="md" mb={4}>Workflow Configuration</Heading>
+                    
+                    <FormControl mb={4}>
+                      <FormLabel>Max Iterations</FormLabel>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={workflow.config.workflow_config?.max_iterations || 5}
+                        onChange={(e) => handleWorkflowConfigChange('max_iterations', parseInt(e.target.value))}
+                      />
+                      <FormHelperText>
+                        Maximum number of decision steps before forcing completion (1-20)
+                      </FormHelperText>
+                    </FormControl>
+                    
+                    <FormControl mb={4}>
+                      <FormLabel>Checkpoint Directory</FormLabel>
+                      <Input
+                        value={workflow.config.workflow_config?.checkpoint_dir || './checkpoints'}
+                        onChange={(e) => handleWorkflowConfigChange('checkpoint_dir', e.target.value)}
+                      />
+                      <FormHelperText>
+                        Directory to store workflow state checkpoints
+                      </FormHelperText>
+                    </FormControl>
+                    
+                    <FormControl mb={4}>
+                      <FormLabel>Enable Detailed Logging</FormLabel>
+                      <Switch
+                        isChecked={workflow.config.workflow_config?.enable_logging || false}
+                        onChange={(e) => handleWorkflowConfigChange('enable_logging', e.target.checked)}
+                      />
+                      <FormHelperText>
+                        Enable verbose logging of agent decisions and tool usage
+                      </FormHelperText>
+                    </FormControl>
+                    
+                    <Divider my={4} />
+                    
+                    <Heading size="sm" mb={3}>Advanced Settings</Heading>
+                    
+                    <FormControl mb={4}>
+                      <FormLabel>Agent Decision Format</FormLabel>
+                      <Select
+                        value={workflow.config.workflow_config?.decision_format || 'hybrid'}
+                        onChange={(e) => handleWorkflowConfigChange('decision_format', e.target.value)}
+                      >
+                        <option value="hybrid">Hybrid (Natural Language + Structured)</option>
+                        <option value="structured">Structured Only (JSON)</option>
+                        <option value="natural">Natural Language Only</option>
+                      </Select>
+                      <FormHelperText>
+                        How agents should format their decisions
+                      </FormHelperText>
+                    </FormControl>
+                    
+                    <FormControl mb={4}>
+                      <FormLabel>Max Decision Time (Seconds)</FormLabel>
+                      <Input
+                        type="number"
+                        min="5"
+                        max="300"
+                        value={workflow.config.workflow_config?.max_decision_time_seconds || 60}
+                        onChange={(e) => handleWorkflowConfigChange('max_decision_time_seconds', parseInt(e.target.value))}
+                      />
+                      <FormHelperText>
+                        Maximum time allowed for agent decisions before timing out
+                      </FormHelperText>
+                    </FormControl>
+                  </CardBody>
+                </Card>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </Box>
+        
+        {/* Workflow Preview */}
+        {showPreview && (
+          <Box>
+            <Card>
+              <CardBody>
+                <Heading size="md" mb={4}>Workflow Preview</Heading>
+                <Tabs variant="enclosed" size="sm">
+                  <TabList>
+                    <Tab>Visual</Tab>
+                    <Tab>JSON</Tab>
+                  </TabList>
+                  <TabPanels>
+                    <TabPanel>
+                      <Box p={4} borderWidth="1px" borderRadius="md" bg="gray.50">
+                        <Heading size="sm" mb={3}>{workflow.name}</Heading>
+                        <Text fontSize="sm" mb={4}>{workflow.description}</Text>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>WORKFLOW TYPE</Text>
+                          <Badge colorScheme="purple">Agentic</Badge>
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>SUPERVISOR</Text>
+                          <HStack>
+                            <Badge colorScheme="blue">{workflow.config.supervisor?.model_provider}</Badge>
+                            <Text fontSize="sm">{workflow.config.supervisor?.name}</Text>
+                          </HStack>
+                          
+                          <Divider my={3} />
+                          
+                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>WORKERS</Text>
+                          {workflow.config.workers?.map((worker, idx) => (
+                            <Box key={idx} mb={2}>
+                              <HStack>
+                                <Badge colorScheme="green">{worker.role}</Badge>
+                                <Text fontSize="sm">{worker.name}</Text>
+                                <Badge colorScheme="gray">{worker.model_provider}</Badge>
+                              </HStack>
+                            </Box>
+                          ))}
+                        </Box>
+                        
+                        <Box mb={4}>
+                          <Text fontWeight="bold" fontSize="xs" color="gray.500" mb={1}>TOOLS</Text>
+                          {workflow.config.tools?.map((tool, idx) => (
+                            <Badge key={idx} mr={2} mb={2} colorScheme="orange">
+                              {tool.name}
+                            </Badge>
+                          ))}
+                          {!workflow.config.tools?.length && (
+                            <Text fontSize="sm" color="gray.500">No tools configured</Text>
+                          )}
+                        </Box>
+                      </Box>
+                    </TabPanel>
+                    <TabPanel>
+                      <Box
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="md"
+                        fontFamily="mono"
+                        fontSize="sm"
+                        bg="gray.50"
+                        overflow="auto"
+                        maxH="600px"
+                      >
+                        <pre>{JSON.stringify(workflow, null, 2)}</pre>
+                      </Box>
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
+              </CardBody>
+            </Card>
+          </Box>
+        )}
+      </SimpleGrid>
+    </Box>
+  );
+};
 
-  export default AgenticWorkflowCreator;
+export default AgenticWorkflowCreator;
