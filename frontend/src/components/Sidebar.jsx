@@ -126,6 +126,10 @@ const SidebarContent = () => {
             </AccordionPanel>
           </AccordionItem>
         </Accordion>
+
+        <SidebarItem icon={FiList} to="/agentic/templates">
+          Templates
+        </SidebarItem>
         
         <SidebarItem icon={FiTool} to="/agentic/tools">
           Agentic Tools
