@@ -13,6 +13,9 @@ from app.core.config import settings
 from app.db.models import User
 from app.db.session import get_db
 
+# Add this for development
+BYPASS_AUTH = True
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -59,6 +62,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
 def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
+    
     """Get the current user from the request token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,6 +84,15 @@ def get_current_user(
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """Check if the current user is active."""
+    if BYPASS_AUTH:
+        # Return a dummy admin user for development
+        return User(
+            id=uuid.uuid4(),
+            username="dev_user",
+            email="dev@example.com",
+            is_active=True,
+            is_admin=True
+        )    
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
