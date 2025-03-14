@@ -58,6 +58,10 @@ app.include_router(settings_router.router, prefix=settings.API_V1_STR, tags=["se
 # Public API Router for deployed workflows
 app.include_router(public_router, prefix="/api/v1", tags=["public-api"])
 
+@app.get("/api/workflows")
+async def get_workflows_compat():
+    return RedirectResponse(url=f"{settings.API_V1_STR}/agentic/workflows")
+    
 # Add exception handlers
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
