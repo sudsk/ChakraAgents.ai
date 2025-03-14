@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, templates, agentic, settings as settings_router
+from app.api import auth, templates, agentic, workflows, settings as settings_router
 from app.api.public import router as public_router
 from app.core.config import settings
 from app.db.session import engine
@@ -48,6 +48,7 @@ async def health_check():
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["authentication"])
 app.include_router(templates.router, prefix=settings.API_V1_STR, tags=["templates"])
+app.include_router(workflows.router, prefix=settings.API_V1_STR, tags=["workflows"])
 
 # Include the consolidated agentic API router
 app.include_router(agentic.router, prefix=settings.API_V1_STR, tags=["agentic-api"])
