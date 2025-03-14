@@ -37,13 +37,16 @@ class ApiClient {
    */
   async handleResponse(response) {
     if (!response.ok) {
+      // Comment out or disable the 401 redirect logic
+      /*
       // For 401 Unauthorized, redirect to login
       if (response.status === 401) {
         localStorage.removeItem('auth_token');
         window.location.href = '/login';
         return;
       }
-
+      */
+      
       // Try to get error message from response
       let errorMessage;
       try {
