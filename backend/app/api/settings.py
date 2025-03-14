@@ -1,6 +1,3 @@
-# At the top of each router file, add:
-from app.core.security import get_current_active_user
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
