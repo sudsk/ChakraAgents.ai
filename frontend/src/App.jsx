@@ -1,4 +1,4 @@
-// frontend/src/App.jsx - Simplified version with only agentic routes
+// frontend/src/App.jsx - Updated to focus only on agentic routes
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
@@ -55,11 +55,6 @@ const theme = extendTheme({
   },
 });
 
-// Updated Layout component that uses the agentic sidebar
-const AgenticLayout = () => {
-  return <Layout sidebar={<Sidebar />} />;
-};
-
 function App() {
   return (
     <ChakraProvider theme={theme}>
@@ -67,8 +62,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           
-          <Route element={<AgenticLayout />}>
-            {/* Main dashboard (redirected from root) */}
+          <Route element={<Layout />}>
+            {/* Redirect root to agentic dashboard */}
             <Route path="/" element={<Navigate to="/agentic" replace />} />
             
             {/* Agentic Dashboard */}
@@ -82,6 +77,13 @@ function App() {
             <Route path="/agentic/tools" element={
               <ProtectedRoute>
                 <AgenticToolsManager />
+              </ProtectedRoute>
+            } />
+            
+            {/* Knowledge Base Page (placeholder for the future) */}
+            <Route path="/agentic/knowledge" element={
+              <ProtectedRoute>
+                <AgenticDashboard />
               </ProtectedRoute>
             } />
             
@@ -116,6 +118,13 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            } />
+            
+            {/* System Logs (placeholder for the future) */}
+            <Route path="/logs" element={
+              <ProtectedRoute>
+                <AgenticDashboard />
               </ProtectedRoute>
             } />
           </Route>
