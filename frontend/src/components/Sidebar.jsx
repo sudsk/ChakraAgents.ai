@@ -96,7 +96,7 @@ const SidebarContent = () => {
       
       <VStack spacing={1} align="stretch">
         <SidebarItem icon={FiCpu} to="/agentic">
-          Agentic Dashboard
+          Dashboard
         </SidebarItem>
         
         <Accordion allowToggle defaultIndex={isAgenticSection ? 0 : -1}>
@@ -109,7 +109,7 @@ const SidebarContent = () => {
                 _hover={{ color: 'brand.500' }}
               >
                 <Icon as={FiMessageCircle} mr={4} fontSize="16" />
-                <Text fontSize="sm" fontWeight="medium">Agentic Workflows</Text>
+                <Text fontSize="sm" fontWeight="medium">Workflows</Text>
               </Flex>
               <AccordionIcon />
             </AccordionButton>
@@ -132,7 +132,7 @@ const SidebarContent = () => {
         </SidebarItem>
         
         <SidebarItem icon={FiTool} to="/agentic/tools">
-          Agentic Tools
+          Tools
         </SidebarItem>
         
         <SidebarItem icon={FiDatabase} to="/agentic/knowledge">
