@@ -246,6 +246,24 @@ export const knowledgeApi = {
   testRetrieval: (query, params) => apiClient.post('/api/knowledge/test', { query, ...params }),
 };
 
+// Templates API
+export const templatesApi = {
+  // Get all templates
+  getAll: (params) => apiClient.get('/api/templates', params),
+  
+  // Get a specific template
+  getById: (id) => apiClient.get(`/api/templates/${id}`),
+  
+  // Create a new template
+  create: (data) => apiClient.post('/api/templates', data),
+  
+  // Update a template
+  update: (id, data) => apiClient.put(`/api/templates/${id}`, data),
+  
+  // Delete a template
+  delete: (id) => apiClient.delete(`/api/templates/${id}`),
+};
+
 // Settings API
 export const settingsApi = {
   get: () => apiClient.get('/api/settings'),
