@@ -14,7 +14,18 @@ from app.db.models import User
 from app.db.session import get_db
 
 # Add this for development
+import uuid
+from app.db.models import User
+
+# Create a dummy admin user for development
 BYPASS_AUTH = True
+DEV_USER = User(
+    id=uuid.uuid4(),
+    username="dev_user",
+    email="dev@example.com",
+    is_active=True,
+    is_admin=True
+)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -52,15 +63,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     """Authenticate a user."""
-    if BYPASS_AUTH:
-        # Return a dummy admin user for development
-        return User(
-            id=uuid.uuid4(),
-            username="dev_user",
-            email="dev@example.com",
-            is_active=True,
-            is_admin=True
-        )     
+    """Always return a dev user, completely bypassing authentication"""
+    return DEV_USER   
+    
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return None
@@ -71,15 +76,9 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
 def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
-    if BYPASS_AUTH:
-        # Return a dummy admin user for development
-        return User(
-            id=uuid.uuid4(),
-            username="dev_user",
-            email="dev@example.com",
-            is_active=True,
-            is_admin=True
-        )     
+    """Always return a dev user, completely bypassing authentication"""
+    return DEV_USER  
+    
     """Get the current user from the request token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,21 +100,18 @@ def get_current_user(
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """Check if the current user is active."""
-    if BYPASS_AUTH:
-        # Return a dummy admin user for development
-        return User(
-            id=uuid.uuid4(),
-            username="dev_user",
-            email="dev@example.com",
-            is_active=True,
-            is_admin=True
-        )    
+    """Always return a dev user, completely bypassing authentication"""
+    return DEV_USER  
+    
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Check if the current user is an admin."""
+    """Always return a dev user, completely bypassing authentication"""
+    return DEV_USER  
+    
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
